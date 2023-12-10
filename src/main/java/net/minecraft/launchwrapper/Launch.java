@@ -2,7 +2,12 @@ package net.minecraft.launchwrapper;
 
 import java.io.File;
 import java.io.PrintStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class Launch {
     /** Default tweaker to launch with when no override is specified on the command line */
@@ -40,7 +45,22 @@ public class Launch {
      * </ol>
      */
     private Launch() {
-        // snip
+        blackboard = new HashMap<>();
+        final URL[] cpEntries = Arrays.stream(
+                        System.getProperty("java.class.path").split(File.pathSeparator))
+                .map(path -> {
+                    try {
+                        return new File(path).toURI().toURL();
+                    } catch (MalformedURLException e) {
+                        LogWrapper.warning("Could not parse {} into an URL", path, e);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .toArray(URL[]::new);
+        final LaunchClassLoader lcl = new LaunchClassLoader(cpEntries);
+        classLoader = lcl;
+        Thread.currentThread().setContextClassLoader(lcl);
     }
 
     /**
