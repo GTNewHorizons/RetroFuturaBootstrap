@@ -10,7 +10,7 @@ public class LogWrapper {
     /** The actual log4j log */
     private Logger myLog;
     /** Guard for log configuration */
-    private static boolean configured;
+    private static volatile boolean configured;
 
     /**
      * <ul>
@@ -19,7 +19,11 @@ public class LogWrapper {
      * </ul>
      */
     private static void configureLogging() {
-        // snip
+        if (configured) {
+            return;
+        }
+        log.myLog = LogManager.getLogger("LaunchWrapper");
+        configured = true;
     }
 
     /** Switches the output to a different Logger object */
@@ -34,22 +38,40 @@ public class LogWrapper {
      * </ul>
      */
     public static void log(String logChannel, Level level, String format, Object... data) {
-        // snip
+        if (format.contains("{}")) {
+            LogManager.getLogger(logChannel).log(level, format, data);
+        } else {
+            LogManager.getLogger(logChannel).log(level, format.formatted(data));
+        }
     }
 
     /** Like above, but logs to myLog (and configures logging first if guard is false). */
     public static void log(Level level, String format, Object... data) {
-        // snip
+        configureLogging();
+        if (format.contains("{}")) {
+            log.myLog.log(level, format, data);
+        } else {
+            log.myLog.log(level, format.formatted(data));
+        }
     }
 
     /** Like above, with a Throwable */
     public static void log(String logChannel, Level level, Throwable ex, String format, Object... data) {
-        // snip
+        if (format.contains("{}")) {
+            LogManager.getLogger(logChannel).log(level, format, data, ex);
+        } else {
+            LogManager.getLogger(logChannel).log(level, format.formatted(data), ex);
+        }
     }
 
     /** Like above, with a Throwable */
     public static void log(Level level, Throwable ex, String format, Object... data) {
-        // snip
+        configureLogging();
+        if (format.contains("{}")) {
+            log.myLog.log(level, format, data, ex);
+        } else {
+            log.myLog.log(level, format.formatted(data), ex);
+        }
     }
 
     /** Trivial wrapper */
