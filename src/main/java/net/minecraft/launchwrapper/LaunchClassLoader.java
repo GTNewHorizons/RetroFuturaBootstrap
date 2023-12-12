@@ -28,6 +28,8 @@ public class LaunchClassLoader extends URLClassLoader {
     private List<URL> sources;
     /** A reference to the classloader that loaded this class */
     private ClassLoader parent = getClass().getClassLoader();
+    /** RFB: Reference to the platform class loader that can load JRE/JDK classes */
+    private static final ClassLoader platformLoader = ClassLoader.getPlatformClassLoader();
 
     /** An ArrayList of all class transformers used, mutable, often modified via reflection */
     private List<IClassTransformer> transformers = new ArrayList<>(2);
@@ -117,8 +119,10 @@ public class LaunchClassLoader extends URLClassLoader {
      */
     public LaunchClassLoader(URL[] sources) {
         super("RFB", sources, ClassLoader.getPlatformClassLoader());
+        LogWrapper.configureLogging();
         this.sources = new ArrayList<>(List.of(sources));
         classLoaderExceptions.addAll(List.of(
+                "java.",
                 "org.lwjgl.",
                 "org.apache.logging.",
                 "net.minecraft.launchwrapper.",
@@ -194,16 +198,11 @@ public class LaunchClassLoader extends URLClassLoader {
                 return cached;
             }
         }
+        boolean runTransformers = true;
         for (final String exception : transformerExceptions) {
             if (name.startsWith(exception)) {
-                final Class<?> klass;
-                try {
-                    klass = super.findClass(name);
-                } catch (ClassNotFoundException e) {
-                    invalidClasses.add(name);
-                    throw e;
-                }
-                cachedClasses.put(name, klass);
+                runTransformers = false;
+                break;
             }
         }
         final String transformedName = transformName(name);
@@ -237,7 +236,7 @@ public class LaunchClassLoader extends URLClassLoader {
                 }
             } else {
                 pkg = getAndVerifyPackage(packageName, null, null);
-                codeSource = new CodeSource(connection.getURL(), (Certificate[]) null);
+                codeSource = connection == null ? null : new CodeSource(connection.getURL(), (Certificate[]) null);
             }
         } else {
             pkg = null;
@@ -249,12 +248,14 @@ public class LaunchClassLoader extends URLClassLoader {
         } catch (IOException e) {
             /* no-op */
         }
-        try {
-            classBytes = runTransformers(untransformedName, transformedName, classBytes);
-        } catch (Throwable t) {
-            var err = new ClassNotFoundException("Exception caught while transforming class " + transformedName, t);
-            LogWrapper.logger.debug("Tranformer error", err);
-            throw err;
+        if (runTransformers) {
+            try {
+                classBytes = runTransformers(untransformedName, transformedName, classBytes);
+            } catch (Throwable t) {
+                var err = new ClassNotFoundException("Exception caught while transforming class " + transformedName, t);
+                LogWrapper.logger.debug("Tranformer error", err);
+                throw err;
+            }
         }
         if (classBytes == null) {
             invalidClasses.add(name);
@@ -470,7 +471,14 @@ public class LaunchClassLoader extends URLClassLoader {
             }
         }
         final String classPath = name.replace('.', '/') + ".class";
-        final URLConnection conn = findCodeSourceConnectionFor(classPath);
+        URLConnection conn = findCodeSourceConnectionFor(classPath);
+        if (conn == null) {
+            // Try JRE classes
+            final URL platformUrl = platformLoader.getResource(classPath);
+            if (platformUrl != null) {
+                conn = platformUrl.openConnection();
+            }
+        }
         if (conn == null) {
             negativeResourceCache.add(name);
             return null;

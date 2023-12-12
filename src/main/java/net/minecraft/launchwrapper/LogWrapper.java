@@ -20,7 +20,7 @@ public class LogWrapper {
      * <li> Sets the configured guard to true </li>
      * </ul>
      */
-    private static void configureLogging() {
+    public static void configureLogging() {
         if (configured) {
             return;
         }
