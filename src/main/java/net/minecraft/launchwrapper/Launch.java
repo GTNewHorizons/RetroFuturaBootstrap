@@ -2,12 +2,21 @@ package net.minecraft.launchwrapper;
 
 import java.io.File;
 import java.io.PrintStream;
+import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import joptsimple.OptionParser;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
 
 public class Launch {
     /** Default tweaker to launch with when no override is specified on the command line */
@@ -36,6 +45,13 @@ public class Launch {
     /** Holds a reference to the original error stream, before it gets redirected to logs */
     private static final PrintStream originalSysErr = System.err;
 
+    /** RFL: Standard blackboard key, an ArrayList(String) of tweakers, mutable */
+    public static final String BLACKBOARD_TWEAK_CLASSES = "TweakClasses";
+    /** RFL: Standard blackboard key, an ArrayList(String) of commandline arguments, mutable */
+    public static final String BLACKBOARD_ARGUMENT_LIST = "ArgumentList";
+    /** RFL: Standard blackboard key, an ArrayList(ITweaker) of the currently loaded tweakers */
+    public static final String BLACKBOARD_TWEAKS = "Tweaks";
+
     /**
      * <ol>
      *     <li>Fetches the current classpath of this class's loader</li>
@@ -45,6 +61,7 @@ public class Launch {
      * </ol>
      */
     private Launch() {
+        LogWrapper.configureLogging();
         blackboard = new HashMap<>();
         final URL[] cpEntries = Arrays.stream(
                         System.getProperty("java.class.path").split(File.pathSeparator))
@@ -102,6 +119,88 @@ public class Launch {
      * @param args commandline arguments
      */
     private void launch(String[] args) {
-        // snip
+        final OptionParser parser = new OptionParser();
+        final OptionSpec<String> aVersion =
+                parser.accepts("version").withRequiredArg().ofType(String.class);
+        final OptionSpec<File> aGameDir =
+                parser.accepts("gameDir").withRequiredArg().ofType(File.class);
+        final OptionSpec<File> aAssetsDir =
+                parser.accepts("assetsDir").withRequiredArg().ofType(File.class);
+        final OptionSpec<String> aTweakClass = parser.accepts("tweakClass")
+                .withOptionalArg()
+                .ofType(String.class)
+                .defaultsTo(DEFAULT_TWEAK);
+        final OptionSpec<String> aRemainder = parser.nonOptions().ofType(String.class);
+        parser.allowsUnrecognizedOptions();
+
+        final OptionSet options = parser.parse(args);
+        final String version = options.valueOf(aVersion);
+        final File gameDir = options.valueOf(aGameDir);
+        final File assetsDir = options.valueOf(aAssetsDir);
+        final List<String> tweakClasses = new ArrayList<>(options.valuesOf(aTweakClass));
+        final List<String> remainingArgs = options.valuesOf(aRemainder);
+
+        blackboard.put(BLACKBOARD_TWEAK_CLASSES, tweakClasses);
+        final List<String> argumentList = new ArrayList<>();
+        blackboard.put(BLACKBOARD_ARGUMENT_LIST, argumentList);
+        final List<ITweaker> tweaks = new ArrayList<>();
+        blackboard.put(BLACKBOARD_TWEAKS, tweaks);
+
+        final Set<String> dedupTweakClasses = new HashSet<>();
+        final List<ITweaker> allTweakers = new ArrayList<>();
+        final List<ITweaker> tweakersToProcess = new ArrayList<>();
+        ITweaker firstTweaker = null;
+
+        while (!tweakClasses.isEmpty()) {
+            for (var iter = tweakClasses.iterator(); iter.hasNext(); ) {
+                try {
+                    final String tweakClass = iter.next();
+                    if (dedupTweakClasses.contains(tweakClass)) {
+                        LogWrapper.logger.warn("Duplicate tweaker class {}", tweakClass);
+                        iter.remove();
+                        continue;
+                    }
+                    dedupTweakClasses.add(tweakClass);
+                    final int lastDot = tweakClass.lastIndexOf('.');
+                    final String tweakPackagePrefix =
+                            (lastDot == -1) ? tweakClass : tweakClass.substring(0, lastDot + 1);
+                    classLoader.addClassLoaderExclusion(tweakPackagePrefix);
+
+                    Class<?> tweakerClass = Class.forName(tweakClass, true, classLoader);
+                    ITweaker tweaker = (ITweaker) tweakerClass.getConstructor().newInstance();
+                    tweaks.add(tweaker);
+                    tweakersToProcess.add(tweaker);
+                    iter.remove();
+                    if (firstTweaker == null) {
+                        firstTweaker = tweaker;
+                    }
+                } catch (ReflectiveOperationException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            for (final ITweaker tweaker : tweakersToProcess) {
+                tweaker.acceptOptions(argumentList, gameDir, assetsDir, version);
+                tweaker.injectIntoClassLoader(classLoader);
+                allTweakers.add(tweaker);
+            }
+            tweakersToProcess.clear();
+        }
+
+        for (final ITweaker tweaker : allTweakers) {
+            Collections.addAll(argumentList, tweaker.getLaunchArguments());
+        }
+
+        argumentList.addAll(remainingArgs);
+
+        try {
+            final String launchTargetName =
+                    Objects.requireNonNull(firstTweaker, "No tweaker supplied").getLaunchTarget();
+            final Class<?> launchTarget = Class.forName(launchTargetName, false, classLoader);
+            final Method mainM = launchTarget.getMethod("main", String[].class);
+            mainM.invoke(null, (Object) argumentList.toArray(new String[0]));
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

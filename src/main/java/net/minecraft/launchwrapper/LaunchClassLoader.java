@@ -205,14 +205,14 @@ public class LaunchClassLoader extends URLClassLoader {
                 break;
             }
         }
-        final String transformedName = transformName(name);
+        final String transformedName = runTransformers ? transformName(name) : name;
         {
             Class<?> transformedClass = cachedClasses.get(transformedName);
             if (transformedClass != null) {
                 return transformedClass;
             }
         }
-        final String untransformedName = untransformName(name);
+        final String untransformedName = runTransformers ? untransformName(name) : name;
         final int lastDot = untransformedName.lastIndexOf('.');
         final String packageName = (lastDot == -1) ? "" : untransformedName.substring(0, lastDot);
         final String classPath = untransformedName.replace('.', '/') + ".class";
