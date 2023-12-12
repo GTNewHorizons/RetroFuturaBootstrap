@@ -4,9 +4,12 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
+import java.security.CodeSource;
+import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -14,9 +17,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
 public class LaunchClassLoader extends URLClassLoader {
+
     /** Internal IO buffer size */
     public static final int BUFFER_SIZE = 1 << 12;
     /** A list keeping track of addURL calls */
@@ -28,19 +33,31 @@ public class LaunchClassLoader extends URLClassLoader {
     private List<IClassTransformer> transformers = new ArrayList<>(2);
     /** A ConcurrentHashMap cache of all classes loaded via this loader */
     private Map<String, Class<?>> cachedClasses = new ConcurrentHashMap<>();
-    /** A HashSet (probably wrong, not thread safe) cache of class names that previously caused exceptions when attempting to load them */
-    private Set<String> invalidClasses = new HashSet<>(1000);
+    /**
+     * A HashSet (probably wrong, not thread safe) cache of class names that previously caused exceptions when
+     * attempting to load them
+     */
+    private Set<String> invalidClasses = Collections.newSetFromMap(new ConcurrentHashMap<>(1000));
 
-    /** A HashSet of all class prefixes (e.g. "org.lwjgl.") to redirect to the parent classloader, often modified via reflection */
+    /**
+     * A HashSet of all class prefixes (e.g. "org.lwjgl.") to redirect to the parent classloader, often modified via
+     * reflection
+     */
     private Set<String> classLoaderExceptions = new HashSet<>();
-    /** A HashSet of all class prefixes (e.g. "org.objectweb.asm.") to NOT run class transformers on, often modified via reflection */
+    /**
+     * A HashSet of all class prefixes (e.g. "org.objectweb.asm.") to NOT run class transformers on, often modified via
+     * reflection
+     */
     private Set<String> transformerExceptions = new HashSet<>();
-    /** An unused cache of package manifests, the field with a non-null CHM value needs to stay here due to reflective usage */
+    /**
+     * An unused cache of package manifests, the field with a non-null CHM value needs to stay here due to reflective
+     * usage
+     */
     private Map<Package, Manifest> packageManifests = new ConcurrentHashMap<>();
     /** A ConcurrentHashMap cache of class bytes loaded via this classloader */
     private Map<String, byte[]> resourceCache = new ConcurrentHashMap<>(1000);
     /** A concurrent cache of class bytes that previously caused exceptions when attempting to load them */
-    private Set<String> negativeResourceCache = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+    private Set<String> negativeResourceCache = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     /** A transformer used to remap class names */
     private IClassNameTransformer renameTransformer;
@@ -49,9 +66,12 @@ public class LaunchClassLoader extends URLClassLoader {
     private static final Manifest EMPTY = new Manifest();
 
     /** A utility IO buffer */
-    private final ThreadLocal<byte[]> loadBuffer = new ThreadLocal<byte[]>();
+    private final ThreadLocal<byte[]> loadBuffer = new ThreadLocal<>();
 
-    /** A list of filenames forbidden by Windows, <a href="https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions">MSDN entry</a> */
+    /**
+     * A list of filenames forbidden by Windows, <a
+     * href="https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions">MSDN entry</a>
+     */
     private static final String[] RESERVED_NAMES = {
         "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1",
         "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
@@ -59,7 +79,10 @@ public class LaunchClassLoader extends URLClassLoader {
 
     /** A system property determining if additional debug output should be generated when loading classes */
     private static final boolean DEBUG = Boolean.parseBoolean(System.getProperty("legacy.debugClassLoading", "false"));
-    /** A system property determining if additional debug output should be generated when loading classes on top of DEBUG */
+    /**
+     * A system property determining if additional debug output should be generated when loading classes on top of
+     * DEBUG
+     */
     private static final boolean DEBUG_FINER =
             DEBUG && Boolean.parseBoolean(System.getProperty("legacy.debugClassLoadingFiner", "false"));
     /** A system property determining if post-transform class bytes should be dumped on top of DEBUG */
@@ -93,19 +116,49 @@ public class LaunchClassLoader extends URLClassLoader {
      * @param sources The initial classpath
      */
     public LaunchClassLoader(URL[] sources) {
-        super("RFB", sources, null);
-        // snip
+        super("RFB", sources, ClassLoader.getPlatformClassLoader());
+        this.sources = new ArrayList<>(List.of(sources));
+        classLoaderExceptions.addAll(List.of(
+                "org.lwjgl.",
+                "org.apache.logging.",
+                "net.minecraft.launchwrapper.",
+                "com.gtnewhorizons.retrofuturabootstrap."));
+        transformerExceptions.addAll(List.of(
+                "javax.",
+                "argo.",
+                "org.objectweb.asm.",
+                "com.google.common.",
+                "org.bouncycastle.",
+                "net.minecraft.launchwrapper.injector.",
+                "com.gtnewhorizons.retrofuturabootstrap."));
+        // TODO: find dump save folder
     }
 
     /**
-     * Reflectively constructs the given transformer, and adds it to the transformer list.
-     * If the transformer is a IClassNameTransformer and one wasn't already registered, sets renameTransformer to it.
-     * Catches any exceptions, and ignores them while logging a message.
+     * Reflectively constructs the given transformer, and adds it to the transformer list. If the transformer is a
+     * IClassNameTransformer and one wasn't already registered, sets renameTransformer to it. Catches any exceptions,
+     * and ignores them while logging a message.
+     *
      * @param transformerClassName A class name (like a.b.Cde) of the transformer.
      */
     public void registerTransformer(String transformerClassName) {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        try {
+            Class<?> xformerClass = Class.forName(transformerClassName, true, this);
+            if (!IClassTransformer.class.isAssignableFrom(xformerClass)) {
+                LogWrapper.severe(
+                        "Tried to register a transformer {} which does not implement IClassTransformer",
+                        transformerClassName);
+                return;
+            }
+            IClassTransformer xformer =
+                    (IClassTransformer) xformerClass.getConstructor().newInstance();
+            if (renameTransformer == null && xformer instanceof IClassNameTransformer nameXformer) {
+                renameTransformer = nameXformer;
+            }
+            transformers.add(xformer);
+        } catch (Throwable e) {
+            LogWrapper.logger.warn("Could not register a transformer {}", transformerClassName, e);
+        }
     }
 
     /**
@@ -127,8 +180,105 @@ public class LaunchClassLoader extends URLClassLoader {
      */
     @Override
     public Class<?> findClass(final String name) throws ClassNotFoundException {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        if (invalidClasses.contains(name)) {
+            throw new ClassNotFoundException(name + " in invalid class cache");
+        }
+        for (final String exception : classLoaderExceptions) {
+            if (name.startsWith(exception)) {
+                return parent.loadClass(name);
+            }
+        }
+        {
+            final Class<?> cached = cachedClasses.get(name);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        for (final String exception : transformerExceptions) {
+            if (name.startsWith(exception)) {
+                final Class<?> klass;
+                try {
+                    klass = super.findClass(name);
+                } catch (ClassNotFoundException e) {
+                    invalidClasses.add(name);
+                    throw e;
+                }
+                cachedClasses.put(name, klass);
+            }
+        }
+        final String transformedName = transformName(name);
+        {
+            Class<?> transformedClass = cachedClasses.get(transformedName);
+            if (transformedClass != null) {
+                return transformedClass;
+            }
+        }
+        final String untransformedName = untransformName(name);
+        final int lastDot = untransformedName.lastIndexOf('.');
+        final String packageName = (lastDot == -1) ? "" : untransformedName.substring(0, lastDot);
+        final String classPath = untransformedName.replace('.', '/') + ".class";
+        final URLConnection connection = findCodeSourceConnectionFor(classPath);
+        final Package pkg;
+        final CodeSource codeSource;
+        if (!packageName.isEmpty()) {
+            if (connection instanceof JarURLConnection jarConnection) {
+                final URL codeSourceUrl = jarConnection.getJarFileURL();
+                Manifest manifest = null;
+                try {
+                    manifest = jarConnection.getManifest();
+                } catch (IOException e) {
+                    // no-op
+                }
+                pkg = getAndVerifyPackage(packageName, manifest, codeSourceUrl);
+                try {
+                    codeSource = new CodeSource(codeSourceUrl, jarConnection.getCertificates());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            } else {
+                pkg = getAndVerifyPackage(packageName, null, null);
+                codeSource = new CodeSource(connection.getURL(), (Certificate[]) null);
+            }
+        } else {
+            pkg = null;
+            codeSource = null;
+        }
+        byte[] classBytes = null;
+        try {
+            classBytes = getClassBytes(untransformedName);
+        } catch (IOException e) {
+            /* no-op */
+        }
+        try {
+            classBytes = runTransformers(untransformedName, transformedName, classBytes);
+        } catch (Throwable t) {
+            var err = new ClassNotFoundException("Exception caught while transforming class " + transformedName, t);
+            LogWrapper.logger.debug("Tranformer error", err);
+            throw err;
+        }
+        if (classBytes == null) {
+            invalidClasses.add(name);
+            throw new ClassNotFoundException(
+                    "Class bytes are null for %s (%s, %s)".formatted(transformedName, name, untransformedName));
+        }
+        Class<?> result = defineClass(transformedName, classBytes, 0, classBytes.length, codeSource);
+        cachedClasses.put(transformedName, result);
+        return result;
+    }
+
+    // based off OpenJDK's own URLClassLoader
+    private Package getAndVerifyPackage(final String packageName, final Manifest manifest, final URL codeSourceURL) {
+        final Package pkg = getDefinedPackage(packageName);
+        if (pkg != null) {
+            if (pkg.isSealed() && !pkg.isSealed(codeSourceURL)) {
+                throw new SecurityException("Sealing violation in package " + packageName);
+            } else if (manifest != null && isSealed(packageName, manifest)) {
+                throw new SecurityException("Sealing violation in already loaded package " + packageName);
+            }
+        } else {
+            return definePackage(packageName, EMPTY, codeSourceURL);
+        }
+        return pkg;
     }
 
     /**
@@ -140,37 +290,64 @@ public class LaunchClassLoader extends URLClassLoader {
      * </ol>
      */
     private void saveTransformedClass(final byte[] data, final String transformedName) {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        // TODO
     }
 
     /** A null-safe version of renameTransformer.unmapClassName(name) */
     private String untransformName(final String name) {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        if (renameTransformer == null || name == null) {
+            return name;
+        }
+        final String newName = renameTransformer.unmapClassName(name);
+        return newName == null ? name : newName;
     }
 
     /** A null-safe version of renameTransformer.remapClassName(name) */
     private String transformName(final String name) {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        if (renameTransformer == null || name == null) {
+            return name;
+        }
+        final String newName = renameTransformer.remapClassName(name);
+        return newName == null ? name : newName;
     }
 
     /**
-     * Checks the manifest path SEALED attribute, then checks the main attributes for the sealed property.
-     * Returns if present and equal to "true" ignoring case.
+     * Checks the manifest path SEALED attribute, then checks the main attributes for the sealed property. Returns if
+     * present and equal to "true" ignoring case.
      */
-    private boolean isSealed(final String path, final Manifest manifest) {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+    private boolean isSealed(final String packageName, final Manifest manifest) {
+        if (manifest == null) {
+            return false;
+        }
+        final String path = packageName.replace('.', '/') + '/';
+        final Attributes attributes = manifest.getAttributes(path);
+        if (attributes != null) {
+            final String value = attributes.getValue(Attributes.Name.SEALED);
+            if (value != null) {
+                return value.equalsIgnoreCase("true");
+            }
+        }
+        final Attributes mainAttributes = manifest.getMainAttributes();
+        if (mainAttributes != null) {
+            final String value = mainAttributes.getValue(Attributes.Name.SEALED);
+            if (value != null) {
+                return value.equalsIgnoreCase("true");
+            }
+        }
+        return false;
     }
 
     /**
      * Calls findResource, and if it's not null opens a connection to it, otherwise returns null.
      */
     private URLConnection findCodeSourceConnectionFor(final String name) {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        try {
+            final URL url = findResource(name);
+            return url.openConnection();
+        } catch (Exception e) {
+            LogWrapper.logger.debug("Couldn't findCodeSourceConnectionFor {}: {}", name, e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -180,8 +357,25 @@ public class LaunchClassLoader extends URLClassLoader {
      * </ol>
      */
     private byte[] runTransformers(final String name, final String transformedName, byte[] basicClass) {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        for (IClassTransformer xformer : transformers) {
+            try {
+                final byte[] newKlass = xformer.transform(name, transformedName, basicClass);
+                // TODO: diff
+                basicClass = newKlass;
+            } catch (UnsupportedOperationException e) {
+                if (e.getMessage().contains("requires ASM")) {
+                    LogWrapper.logger.warn(
+                            "ASM transformer {} encountered a newer classfile ({} -> {}) than supported: {}",
+                            xformer.getClass().getName(),
+                            name,
+                            transformedName,
+                            e.getMessage());
+                    continue;
+                }
+                throw e;
+            }
+        }
+        return basicClass;
     }
 
     /**
@@ -189,8 +383,8 @@ public class LaunchClassLoader extends URLClassLoader {
      */
     @Override
     public void addURL(final URL url) {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        super.addURL(url);
+        sources.add(url);
     }
 
     /** Returns the saved classpath list */
@@ -199,25 +393,39 @@ public class LaunchClassLoader extends URLClassLoader {
     }
 
     /**
-     * Tries to fully read the input stream into a byte array, using getOrCreateBuffer() as the IO buffer.
-     * Returns an empty array and logs a warning if any exception happens.
+     * Tries to fully read the input stream into a byte array<strike>, using getOrCreateBuffer() as the IO
+     * buffer</strike>. Returns an empty array and logs a warning if any exception happens.
      */
     private byte[] readFully(InputStream stream) {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        try {
+            return stream.readAllBytes();
+        } catch (Exception e) {
+            LogWrapper.logger.warn("Could not read InputStream {}", stream.toString(), e);
+            return new byte[0];
+        }
     }
 
     /**
      * A TLS helper for the loadBuffer field, creates a byte[BUFFER_SIZE] array if empty.
      */
+    @SuppressWarnings("unused") // keep for reflection compat if needed
     private byte[] getOrCreateBuffer() {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        byte[] buf = loadBuffer.get();
+        if (buf == null) {
+            buf = new byte[BUFFER_SIZE];
+            loadBuffer.set(buf);
+        }
+        return buf;
     }
 
     /** Returns an unmodifiable view of the transformers list */
     public List<IClassTransformer> getTransformers() {
         return Collections.unmodifiableList(transformers);
+    }
+
+    /** RFB: Returns a modifiable view of the transformers list */
+    public List<IClassTransformer> getMutableTransformers() {
+        return transformers;
     }
 
     /** Adds a new entry to the end of the class loader exclusions list */
@@ -241,14 +449,53 @@ public class LaunchClassLoader extends URLClassLoader {
      * </ol>
      */
     public byte[] getClassBytes(String name) throws IOException {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        if (negativeResourceCache.contains(name)) {
+            return null;
+        }
+        final byte[] cached = resourceCache.get(name);
+        if (cached != null) {
+            return cached.clone();
+        }
+        if (!name.contains(".") && name.length() >= 3 && name.length() <= 4) {
+            for (final String reserved : RESERVED_NAMES) {
+                if (reserved.equalsIgnoreCase(name)) {
+                    final byte[] underscored = getClassBytes("_" + name);
+                    if (underscored != null) {
+                        resourceCache.put(name, underscored);
+                    } else {
+                        negativeResourceCache.add(name);
+                    }
+                    return underscored;
+                }
+            }
+        }
+        final String classPath = name.replace('.', '/') + ".class";
+        final URLConnection conn = findCodeSourceConnectionFor(classPath);
+        if (conn == null) {
+            negativeResourceCache.add(name);
+            return null;
+        }
+        final InputStream is = conn.getInputStream();
+        final byte[] contents = readFully(is);
+        closeSilently(is);
+        if (contents == null) {
+            negativeResourceCache.add(name);
+            return null;
+        }
+        resourceCache.put(name, contents);
+        return contents.clone();
     }
 
     /** Null-safe, exception-safe close function that silently ignores any errors */
     private static void closeSilently(Closeable closeable) {
-        // snip
-        throw new UnsupportedOperationException("NYI, TODO");
+        if (closeable == null) {
+            return;
+        }
+        try {
+            closeable.close();
+        } catch (Throwable e) {
+            // no-op
+        }
     }
 
     /** Removes all of entriesToClear from negativeResourceCache */
