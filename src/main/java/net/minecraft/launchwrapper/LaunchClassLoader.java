@@ -256,7 +256,7 @@ public class LaunchClassLoader extends URLClassLoader {
                 classBytes = runTransformers(untransformedName, transformedName, classBytes);
             } catch (Throwable t) {
                 var err = new ClassNotFoundException("Exception caught while transforming class " + transformedName, t);
-                LogWrapper.logger.debug("Tranformer error", err);
+                LogWrapper.logger.debug("Transformer error", err);
                 throw err;
             }
         }
@@ -272,7 +272,10 @@ public class LaunchClassLoader extends URLClassLoader {
 
     // based off OpenJDK's own URLClassLoader
     private Package getAndVerifyPackage(final String packageName, final Manifest manifest, final URL codeSourceURL) {
-        final Package pkg = getDefinedPackage(packageName);
+        Package pkg = getDefinedPackage(packageName);
+        if (pkg == null) {
+            pkg = platformLoader.getDefinedPackage(packageName);
+        }
         if (pkg != null) {
             if (pkg.isSealed() && !pkg.isSealed(codeSourceURL)) {
                 throw new SecurityException("Sealing violation in package " + packageName);
@@ -477,7 +480,8 @@ public class LaunchClassLoader extends URLClassLoader {
             }
         }
         final String classPath = name.replace('.', '/') + ".class";
-        URLConnection conn = findCodeSourceConnectionFor(classPath);
+        final URL resourceUrl = findResource(classPath);
+        URLConnection conn = resourceUrl == null ? null : resourceUrl.openConnection();
         if (conn == null) {
             // Try JRE classes
             final URL platformUrl = platformLoader.getResource(classPath);
