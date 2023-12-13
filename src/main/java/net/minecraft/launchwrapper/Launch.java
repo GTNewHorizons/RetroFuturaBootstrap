@@ -148,7 +148,6 @@ public class Launch {
 
         final Set<String> dedupTweakClasses = new HashSet<>();
         final List<ITweaker> allTweakers = new ArrayList<>();
-        final List<ITweaker> tweakersToProcess = new ArrayList<>();
         ITweaker firstTweaker = null;
 
         while (!tweakClasses.isEmpty()) {
@@ -169,7 +168,6 @@ public class Launch {
                     Class<?> tweakerClass = Class.forName(tweakClass, true, classLoader);
                     ITweaker tweaker = (ITweaker) tweakerClass.getConstructor().newInstance();
                     tweaks.add(tweaker);
-                    tweakersToProcess.add(tweaker);
                     iter.remove();
                     if (firstTweaker == null) {
                         firstTweaker = tweaker;
@@ -179,12 +177,15 @@ public class Launch {
                 }
             }
 
-            for (final ITweaker tweaker : tweakersToProcess) {
+            for (var iter = tweaks.iterator(); iter.hasNext(); ) {
+                final ITweaker tweaker = iter.next();
+                LogWrapper.logger.debug(
+                        "Installing tweaker {}", tweaker.getClass().getName());
                 tweaker.acceptOptions(argumentList, gameDir, assetsDir, version);
                 tweaker.injectIntoClassLoader(classLoader);
                 allTweakers.add(tweaker);
+                iter.remove();
             }
-            tweakersToProcess.clear();
         }
 
         for (final ITweaker tweaker : allTweakers) {

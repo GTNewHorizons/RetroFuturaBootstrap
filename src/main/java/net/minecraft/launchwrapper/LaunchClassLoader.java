@@ -8,8 +8,8 @@ import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
+import java.security.CodeSigner;
 import java.security.CodeSource;
-import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -123,6 +123,8 @@ public class LaunchClassLoader extends URLClassLoader {
         this.sources = new ArrayList<>(List.of(sources));
         classLoaderExceptions.addAll(List.of(
                 "java.",
+                "sun.",
+                "com.sun.",
                 "org.lwjgl.",
                 "org.apache.logging.",
                 "net.minecraft.launchwrapper.",
@@ -160,6 +162,7 @@ public class LaunchClassLoader extends URLClassLoader {
                 renameTransformer = nameXformer;
             }
             transformers.add(xformer);
+            LogWrapper.logger.debug("Registered class transformer {}", transformerClassName);
         } catch (Throwable e) {
             LogWrapper.logger.warn("Could not register a transformer {}", transformerClassName, e);
         }
@@ -220,23 +223,23 @@ public class LaunchClassLoader extends URLClassLoader {
         final Package pkg;
         final CodeSource codeSource;
         if (!packageName.isEmpty()) {
-            if (connection instanceof JarURLConnection jarConnection) {
+            if (!untransformedName.startsWith("net.minecraft")
+                    && connection instanceof JarURLConnection jarConnection) {
                 final URL codeSourceUrl = jarConnection.getJarFileURL();
                 Manifest manifest = null;
+                CodeSigner[] codeSigners = null;
                 try {
                     manifest = jarConnection.getManifest();
+                    pkg = getAndVerifyPackage(packageName, manifest, codeSourceUrl);
+                    getClassBytes(untransformedName);
+                    codeSigners = jarConnection.getJarEntry().getCodeSigners();
                 } catch (IOException e) {
                     // no-op
                 }
-                pkg = getAndVerifyPackage(packageName, manifest, codeSourceUrl);
-                try {
-                    codeSource = new CodeSource(codeSourceUrl, jarConnection.getCertificates());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                codeSource = new CodeSource(codeSourceUrl, codeSigners);
             } else {
                 pkg = getAndVerifyPackage(packageName, null, null);
-                codeSource = connection == null ? null : new CodeSource(connection.getURL(), (Certificate[]) null);
+                codeSource = connection == null ? null : new CodeSource(connection.getURL(), (CodeSigner[]) null);
             }
         } else {
             pkg = null;
@@ -344,6 +347,9 @@ public class LaunchClassLoader extends URLClassLoader {
     private URLConnection findCodeSourceConnectionFor(final String name) {
         try {
             final URL url = findResource(name);
+            if (url == null) {
+                return null;
+            }
             return url.openConnection();
         } catch (Exception e) {
             LogWrapper.logger.debug("Couldn't findCodeSourceConnectionFor {}: {}", name, e.getMessage());
