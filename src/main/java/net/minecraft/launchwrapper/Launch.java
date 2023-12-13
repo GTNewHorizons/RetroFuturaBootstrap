@@ -165,6 +165,7 @@ public class Launch {
                             (lastDot == -1) ? tweakClass : tweakClass.substring(0, lastDot + 1);
                     classLoader.addClassLoaderExclusion(tweakPackagePrefix);
 
+                    LogWrapper.logger.info("Constructing tweaker {}", tweakClass);
                     Class<?> tweakerClass = Class.forName(tweakClass, true, classLoader);
                     ITweaker tweaker = (ITweaker) tweakerClass.getConstructor().newInstance();
                     tweaks.add(tweaker);
@@ -179,7 +180,7 @@ public class Launch {
 
             for (var iter = tweaks.iterator(); iter.hasNext(); ) {
                 final ITweaker tweaker = iter.next();
-                LogWrapper.logger.debug(
+                LogWrapper.logger.info(
                         "Installing tweaker {}", tweaker.getClass().getName());
                 tweaker.acceptOptions(argumentList, gameDir, assetsDir, version);
                 tweaker.injectIntoClassLoader(classLoader);
