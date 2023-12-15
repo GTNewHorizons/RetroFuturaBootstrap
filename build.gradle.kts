@@ -6,6 +6,8 @@ plugins {
   id("com.github.gmazzo.buildconfig") version "4.2.0"
 }
 
+group = "com.gtnewhorizons.retrofuturabootstrap"
+
 repositories {
   maven { url = uri("https://libraries.minecraft.net/") }
   maven {

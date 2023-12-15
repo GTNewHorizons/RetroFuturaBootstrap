@@ -80,6 +80,11 @@ public class Launch {
         Thread.currentThread().setContextClassLoader(lcl);
     }
 
+    /** Hack for mixin line-number-based stacktrace detection */
+    private void launch(String[] args) {
+        realLaunch(args);
+    }
+
     /**
      * <ol>
      *     <li>Uses joptsimple to parse game options: <ul>
@@ -118,7 +123,7 @@ public class Launch {
      *
      * @param args commandline arguments
      */
-    private void launch(String[] args) {
+    private void realLaunch(String[] args) {
         final OptionParser parser = new OptionParser();
         final OptionSpec<String> aVersion =
                 parser.accepts("version").withRequiredArg().ofType(String.class);
