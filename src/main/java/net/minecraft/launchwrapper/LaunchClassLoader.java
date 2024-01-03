@@ -1,5 +1,6 @@
 package net.minecraft.launchwrapper;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -20,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
-public class LaunchClassLoader extends URLClassLoader {
+public class LaunchClassLoader extends URLClassLoader implements ExtensibleClassLoader {
 
     /** Internal IO buffer size */
     public static final int BUFFER_SIZE = 1 << 12;
@@ -118,7 +119,7 @@ public class LaunchClassLoader extends URLClassLoader {
      * @param sources The initial classpath
      */
     public LaunchClassLoader(URL[] sources) {
-        super("RFB", sources, ClassLoader.getPlatformClassLoader());
+        super("RFB-Launch", sources, ClassLoader.getPlatformClassLoader());
         LogWrapper.configureLogging();
         this.sources = new ArrayList<>(List.of(sources));
         classLoaderExceptions.addAll(List.of(
@@ -274,7 +275,7 @@ public class LaunchClassLoader extends URLClassLoader {
     private Package getAndVerifyPackage(final String packageName, final Manifest manifest, final URL codeSourceURL) {
         Package pkg = getDefinedPackage(packageName);
         if (pkg == null) {
-            pkg = platformLoader.getDefinedPackage(packageName);
+            pkg = parent.getDefinedPackage(packageName);
         }
         if (pkg != null) {
             if (pkg.isSealed() && !pkg.isSealed(codeSourceURL)) {
@@ -519,5 +520,10 @@ public class LaunchClassLoader extends URLClassLoader {
     /** Removes all of entriesToClear from negativeResourceCache */
     public void clearNegativeEntries(Set<String> entriesToClear) {
         negativeResourceCache.removeAll(entriesToClear);
+    }
+
+    @Override
+    public URLClassLoader asURLClassLoader() {
+        return this;
     }
 }

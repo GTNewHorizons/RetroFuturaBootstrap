@@ -62,6 +62,9 @@ buildConfig {
   useJavaOutput()
 }
 
+lateinit var java8stubs: SourceSet
+lateinit var java8: SourceSet
+
 // Apply a specific Java toolchain to ease working on different environments.
 java {
   toolchain {
@@ -70,12 +73,30 @@ java {
   }
   withSourcesJar()
   withJavadocJar()
+
+  sourceSets {
+    // Stub classes, not actually included in the jar
+    java8stubs = create("java8stubs") {}
+    java8 = create("java8") { compileClasspath += java8stubs.output }
+    main {
+      compileClasspath += java8.output
+      runtimeClasspath += java8.output
+    }
+    test {
+      compileClasspath += java8.output
+      runtimeClasspath += java8.output
+    }
+  }
 }
 
 tasks.withType<JavaCompile>() {
   options.encoding = "UTF-8"
   options.release = 17
 }
+
+tasks.named<JavaCompile>(java8.compileJavaTaskName) { options.release = 8 }
+
+tasks.jar { from(java8.output) }
 
 tasks.withType<Javadoc>().configureEach {
   this.javadocTool.set(

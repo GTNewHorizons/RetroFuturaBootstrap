@@ -1,12 +1,10 @@
 package net.minecraft.launchwrapper;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import java.io.File;
 import java.io.PrintStream;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -37,6 +35,10 @@ public class Launch {
 
     /** The actual main() invoked by the game launcher */
     public static void main(String[] args) {
+        if (!(Launch.class.getClassLoader() instanceof ExtensibleClassLoader)) {
+            throw new UnsupportedOperationException(
+                    "RetroFuturaBootstrap requires launching using com.gtnewhorizons.retrofuturabootstrap.Main");
+        }
         new Launch().launch(args);
     }
 
@@ -63,19 +65,10 @@ public class Launch {
     private Launch() {
         LogWrapper.configureLogging();
         blackboard = new HashMap<>();
-        final URL[] cpEntries = Arrays.stream(
-                        System.getProperty("java.class.path").split(File.pathSeparator))
-                .map(path -> {
-                    try {
-                        return new File(path).toURI().toURL();
-                    } catch (MalformedURLException e) {
-                        LogWrapper.warning("Could not parse {} into an URL", path, e);
-                        return null;
-                    }
-                })
-                .filter(Objects::nonNull)
-                .toArray(URL[]::new);
-        final LaunchClassLoader lcl = new LaunchClassLoader(cpEntries);
+        final ExtensibleClassLoader parentLoader =
+                (ExtensibleClassLoader) getClass().getClassLoader();
+        final LaunchClassLoader lcl =
+                new LaunchClassLoader(parentLoader.asURLClassLoader().getURLs());
         classLoader = lcl;
         Thread.currentThread().setContextClassLoader(lcl);
     }
