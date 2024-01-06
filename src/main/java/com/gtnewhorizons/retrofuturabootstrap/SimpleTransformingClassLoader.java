@@ -125,7 +125,11 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderBase impl
             /* no-op */
         }
         try {
-            classBytes = runTransformers(name, classBytes);
+            if (Main.cfgDumpLoadedClassesPerTransformer && classBytes != null) {
+                Main.dumpClass(this.getClassLoaderName(), name + "_000_pretransform", classBytes);
+            }
+            classBytes = runCompatibilityTransformers(
+                    compatibilityTransformers, SimpleClassTransformer.Context.SYSTEM, name, classBytes);
         } catch (Throwable t) {
             ClassNotFoundException err =
                     new ClassNotFoundException("Exception caught while transforming class " + name, t);
@@ -134,6 +138,9 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderBase impl
         }
         if (classBytes == null) {
             throw new ClassNotFoundException(String.format("Class bytes are null for %s (%s, %s)", name, name, name));
+        }
+        if (Main.cfgDumpLoadedClasses) {
+            Main.dumpClass(this.getClassLoaderName(), name, classBytes);
         }
         Class<?> result = defineClass(name, classBytes, 0, classBytes.length, codeSource);
         cachedClasses.put(name, new WeakReference<>(result));
@@ -167,33 +174,6 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderBase impl
             LogWrapper.logger.debug("Couldn't findCodeSourceConnectionFor {}: {}", name, e.getMessage());
             return null;
         }
-    }
-
-    /**
-     * <ol>
-     *     <li>For each transformer on the transformer list, transform basicClass</li>
-     *     <li>Return the updated basicClass</li>
-     * </ol>
-     */
-    private byte[] runTransformers(final String name, byte[] basicClass) {
-        for (SimpleClassTransformer xformer : compatibilityTransformers) {
-            try {
-                final byte[] newKlass = xformer.transformClass(this, name, basicClass);
-                // TODO: diff
-                basicClass = newKlass;
-            } catch (UnsupportedOperationException e) {
-                if (e.getMessage().contains("requires ASM")) {
-                    LogWrapper.logger.warn(
-                            "ASM transformer {} encountered a newer classfile ({}) than supported: {}",
-                            xformer.getClass().getName(),
-                            name,
-                            e.getMessage());
-                    continue;
-                }
-                throw e;
-            }
-        }
-        return basicClass;
     }
 
     /**

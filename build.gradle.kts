@@ -68,7 +68,7 @@ lateinit var java9: SourceSet
 // Apply a specific Java toolchain to ease working on different environments.
 java {
   toolchain {
-    languageVersion.set(JavaLanguageVersion.of(21))
+    languageVersion.set(JavaLanguageVersion.of(17))
     vendor.set(JvmVendorSpec.AZUL)
   }
   withSourcesJar()
@@ -77,7 +77,11 @@ java {
   sourceSets {
     // Stub classes, not actually included in the jar
     main {}
-    java9 = create("java9") { compileClasspath += this@sourceSets.main.get().output }
+    java9 =
+        create("java9") {
+          compileClasspath +=
+              this@sourceSets.main.get().output + files(configurations.compileClasspath)
+        }
     test {
       runtimeClasspath = files(this@test.output, tasks.jar, configurations.testRuntimeClasspath)
     }
@@ -105,7 +109,7 @@ tasks.jar {
 tasks.withType<Javadoc>().configureEach {
   this.javadocTool.set(
       javaToolchains.javadocToolFor {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(17))
         vendor.set(JvmVendorSpec.AZUL)
       })
   with(options as StandardJavadocDocletOptions) {

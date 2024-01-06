@@ -1,9 +1,15 @@
 package net.minecraft.launchwrapper;
 
+import com.gtnewhorizons.retrofuturabootstrap.Main;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Method;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -141,6 +147,31 @@ public class Launch {
         final File assetsDir = options.valueOf(aAssetsDir);
         final List<String> tweakClasses = new ArrayList<>(options.valuesOf(aTweakClass));
         final List<String> remainingArgs = options.valuesOf(aRemainder);
+
+        if ((Main.cfgDumpLoadedClasses || Main.cfgDumpLoadedClassesPerTransformer)
+                && Main.classDumpDirectory.get() == null) {
+            final Path gamePath = gameDir.toPath();
+            final FileSystem fs = gamePath.getFileSystem();
+            Path dumpPath = gamePath.resolve(Main.RFB_CLASS_DUMP_PREFIX);
+            try {
+                Files.createDirectory(dumpPath);
+            } catch (FileAlreadyExistsException fae) {
+                for (int i = 0; i < 1000; i++) {
+                    dumpPath = gamePath.resolve(Main.RFB_CLASS_DUMP_PREFIX + "_" + i);
+                    try {
+                        Files.createDirectory(dumpPath);
+                    } catch (FileAlreadyExistsException e) {
+                        continue;
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    break;
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            Main.classDumpDirectory.set(dumpPath);
+        }
 
         blackboard.put(BLACKBOARD_TWEAK_CLASSES, tweakClasses);
         final List<String> argumentList = new ArrayList<>();

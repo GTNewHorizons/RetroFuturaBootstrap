@@ -1,7 +1,10 @@
 package net.minecraft.launchwrapper;
 
+import com.gtnewhorizons.retrofuturabootstrap.Main;
+import com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.URLClassLoaderBase;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
+import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -30,6 +33,9 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
     private List<URL> sources;
     /** A reference to the classloader that loaded this class */
     private ClassLoader parent = getClass().getClassLoader();
+    /** RFB: null or SimpleTransformingClassLoader reference to parent */
+    private final SimpleTransformingClassLoader parentRfb =
+            (parent instanceof SimpleTransformingClassLoader) ? ((SimpleTransformingClassLoader) parent) : null;
     /** RFB: Reference to the platform class loader that can load JRE/JDK classes */
     private static final ClassLoader platformLoader = getPlatformClassLoader();
 
@@ -138,7 +144,6 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
                 "org.bouncycastle.",
                 "net.minecraft.launchwrapper.injector.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
-        // TODO: find dump save folder
     }
 
     /**
@@ -266,9 +271,26 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
                 throw err;
             }
         }
+        if (parentRfb != null) {
+            try {
+                final SimpleClassTransformer.Context context = runTransformers
+                        ? SimpleClassTransformer.Context.LCL_WITH_TRANFORMS
+                        : SimpleClassTransformer.Context.LCL_NO_TRANFORMS;
+                classBytes = runCompatibilityTransformers(
+                        parentRfb.getCompatibilityTransformers(), context, transformedName, classBytes);
+            } catch (Throwable t) {
+                ClassNotFoundException err =
+                        new ClassNotFoundException("Exception caught while transforming class " + name, t);
+                LogWrapper.logger.debug("Transformer error", err);
+                throw err;
+            }
+        }
         if (classBytes == null) {
             invalidClasses.add(name);
             throw new ClassNotFoundException(String.format("Class bytes are null for %s (%s, %s)", name, name, name));
+        }
+        if (Main.cfgDumpLoadedClasses) {
+            Main.dumpClass(this.getClassLoaderName(), transformedName, classBytes);
         }
         Class<?> result = defineClass(transformedName, classBytes, 0, classBytes.length, codeSource);
         cachedClasses.put(transformedName, result);
@@ -289,7 +311,7 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
      * </ol>
      */
     private void saveTransformedClass(final byte[] data, final String transformedName) {
-        // TODO
+        Main.dumpClass(this.getClassLoaderName(), transformedName, data);
     }
 
     /** A null-safe version of renameTransformer.unmapClassName(name) */
@@ -340,10 +362,28 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
      * </ol>
      */
     private byte[] runTransformers(final String name, final String transformedName, byte[] basicClass) {
+        if (Main.cfgDumpLoadedClassesPerTransformer && basicClass != null) {
+            Main.dumpClass(this.getClassLoaderName(), transformedName + "__000_pretransform", basicClass);
+        }
+        int xformerIndex = 1;
         for (IClassTransformer xformer : transformers) {
             try {
                 final byte[] newKlass = xformer.transform(name, transformedName, basicClass);
-                // TODO: diff
+                if (Main.cfgDumpLoadedClassesPerTransformer
+                        && newKlass != null
+                        && !Arrays.equals(basicClass, newKlass)) {
+                    Main.dumpClass(
+                            this.getClassLoaderName(),
+                            String.format(
+                                    "%s__%03d_%s",
+                                    transformedName,
+                                    xformerIndex,
+                                    xformer.getClass()
+                                            .getName()
+                                            .replace('/', '_')
+                                            .replace('.', '_')),
+                            basicClass);
+                }
                 basicClass = newKlass;
             } catch (UnsupportedOperationException e) {
                 if (e.getMessage().contains("requires ASM")) {
@@ -357,6 +397,7 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
                 }
                 throw e;
             }
+            xformerIndex++;
         }
         return basicClass;
     }
