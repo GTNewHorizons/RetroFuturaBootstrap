@@ -52,8 +52,9 @@ dependencies {
 }
 
 val gitVersion: groovy.lang.Closure<String> by extra
+val envVersion: String? = System.getenv("VERSION")
 
-version = gitVersion()
+version = envVersion ?: gitVersion()
 
 buildConfig {
   buildConfigField("String", "VERSION", provider { "\"${project.version}\"" })
