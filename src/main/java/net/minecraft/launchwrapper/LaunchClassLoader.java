@@ -126,7 +126,6 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
         classLoaderExceptions.addAll(Arrays.asList(
                 "java.",
                 "sun.",
-                "com.sun.",
                 "org.lwjgl.",
                 "org.apache.logging.",
                 "net.minecraft.launchwrapper.",
@@ -227,25 +226,29 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
         if (!packageName.isEmpty()) {
             if (!untransformedName.startsWith("net.minecraft") && connection instanceof JarURLConnection) {
                 final JarURLConnection jarConnection = (JarURLConnection) connection;
-                final URL codeSourceUrl = jarConnection.getJarFileURL();
+                final URL packageSourceUrl = jarConnection.getJarFileURL();
                 Manifest manifest = null;
                 CodeSigner[] codeSigners = null;
                 try {
                     manifest = jarConnection.getManifest();
-                    pkg = getAndVerifyPackage(packageName, manifest, codeSourceUrl);
+                    pkg = getAndVerifyPackage(packageName, manifest, packageSourceUrl);
                     getClassBytes(untransformedName);
                     codeSigners = jarConnection.getJarEntry().getCodeSigners();
                 } catch (IOException e) {
                     // no-op
                 }
-                codeSource = new CodeSource(codeSourceUrl, codeSigners);
+                // LaunchClassLoader was buggy here and used the file URL instead of the jar URL, unlike regular Java
+                // ClassLoaders.
+                final URL classSourceUrl = runTransformers ? jarConnection.getURL() : jarConnection.getJarFileURL();
+                codeSource = new CodeSource(classSourceUrl, codeSigners);
             } else {
                 pkg = getAndVerifyPackage(packageName, null, null);
                 codeSource = connection == null ? null : new CodeSource(connection.getURL(), (CodeSigner[]) null);
             }
         } else {
             pkg = null;
-            codeSource = null;
+            final URL url = connection == null ? null : connection.getURL();
+            codeSource = url == null ? null : new CodeSource(url, (CodeSigner[]) null);
         }
         byte[] classBytes = null;
         try {
@@ -364,6 +367,9 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
     @Override
     public void addURL(final URL url) {
         super.addURL(url);
+        if (parent instanceof ExtensibleClassLoader) {
+            ((ExtensibleClassLoader) parent).addURL(url);
+        }
         sources.add(url);
     }
 

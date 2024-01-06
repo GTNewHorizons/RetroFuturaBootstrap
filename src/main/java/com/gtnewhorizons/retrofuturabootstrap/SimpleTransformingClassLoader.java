@@ -62,9 +62,8 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderBase impl
         LogWrapper.configureLogging();
         classLoaderExceptions.addAll(Arrays.asList(
                 "java.",
+                "jdk.internal.",
                 "sun.",
-                "com.sun.",
-                "org.lwjgl.",
                 "org.apache.logging.",
                 "LZMA.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
@@ -109,6 +108,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderBase impl
                 } catch (IOException e) {
                     // no-op
                 }
+                // Different from LaunchClassLoader to mimic Java ClassLoaders.
                 codeSource = new CodeSource(codeSourceUrl, codeSigners);
             } else {
                 pkg = getAndVerifyPackage(packageName, null, null);

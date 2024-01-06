@@ -160,8 +160,7 @@ public class Launch {
                     }
                     dedupTweakClasses.add(tweakClass);
                     final int lastDot = tweakClass.lastIndexOf('.');
-                    final String tweakPackagePrefix =
-                            (lastDot == -1) ? tweakClass : tweakClass.substring(0, lastDot + 1);
+                    final String tweakPackagePrefix = (lastDot == -1) ? tweakClass : tweakClass.substring(0, lastDot);
                     classLoader.addClassLoaderExclusion(tweakPackagePrefix);
 
                     LogWrapper.logger.info("Constructing tweaker {}", tweakClass);

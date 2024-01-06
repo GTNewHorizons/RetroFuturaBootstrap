@@ -35,6 +35,7 @@ public class Main {
     }
 
     public static void main(String[] args) throws Throwable {
+        URLProtocolFactory.register();
         final URL[] cpEntries = getUrlClasspathEntries();
         final SimpleTransformingClassLoader compatLoader = new SimpleTransformingClassLoader("RFB-Compat", cpEntries);
         Thread.currentThread().setContextClassLoader(compatLoader);
