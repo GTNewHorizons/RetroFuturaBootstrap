@@ -62,13 +62,12 @@ buildConfig {
   useJavaOutput()
 }
 
-lateinit var java8stubs: SourceSet
-lateinit var java8: SourceSet
+lateinit var java9: SourceSet
 
 // Apply a specific Java toolchain to ease working on different environments.
 java {
   toolchain {
-    languageVersion.set(JavaLanguageVersion.of(17))
+    languageVersion.set(JavaLanguageVersion.of(21))
     vendor.set(JvmVendorSpec.AZUL)
   }
   withSourcesJar()
@@ -76,41 +75,61 @@ java {
 
   sourceSets {
     // Stub classes, not actually included in the jar
-    java8stubs = create("java8stubs") {}
-    java8 = create("java8") { compileClasspath += java8stubs.output }
-    main {
-      compileClasspath += java8.output
-      runtimeClasspath += java8.output
-    }
+    main {}
+    java9 = create("java9") { compileClasspath += this@sourceSets.main.get().output }
     test {
-      compileClasspath += java8.output
-      runtimeClasspath += java8.output
+      runtimeClasspath = files(this@test.output, tasks.jar, configurations.testRuntimeClasspath)
     }
   }
 }
 
 tasks.withType<JavaCompile>() {
   options.encoding = "UTF-8"
-  options.release = 17
+  options.release = 8
 }
 
-tasks.named<JavaCompile>(java8.compileJavaTaskName) { options.release = 8 }
+tasks.named<JavaCompile>(java9.compileJavaTaskName) { options.release = 9 }
 
-tasks.jar { from(java8.output) }
+tasks.jar {
+  into("META-INF/versions/9") { from(java9.output) }
+  manifest.attributes["Multi-Release"] = "true"
+  manifest.attributes["Specification-Title"] = "launchwrapper"
+  manifest.attributes["Specification-Version"] = "1.12"
+  manifest.attributes["Specification-Vendor"] = "Minecraft"
+  manifest.attributes["Implementation-Title"] = "RetroFuturaBootstrap"
+  manifest.attributes["Implementation-Version"] = project.version.toString()
+  manifest.attributes["Implementation-Vendor"] = "GTNewHorizons"
+}
 
 tasks.withType<Javadoc>().configureEach {
   this.javadocTool.set(
       javaToolchains.javadocToolFor {
-        languageVersion.set(JavaLanguageVersion.of(17))
+        languageVersion.set(JavaLanguageVersion.of(21))
         vendor.set(JvmVendorSpec.AZUL)
       })
   with(options as StandardJavadocDocletOptions) {
-    links("https://docs.oracle.com/en/java/javase/17/docs/api/")
+    links("https://docs.oracle.com/en/java/javase/21/docs/api/")
     addStringOption("Xdoclint:all,-missing", "-quiet")
   }
 }
 
 tasks.named<Test>("test") { useJUnitPlatform() }
+
+val test8 =
+    tasks.register<Test>("test8") {
+      group = "Verification tasks"
+      description = "Run the test suite on Java 8."
+
+      useJUnitPlatform()
+      this.classpath = sourceSets.test.get().runtimeClasspath
+      this.javaLauncher =
+          javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(8)
+            vendor = JvmVendorSpec.AZUL
+          }
+    }
+
+tasks.check { dependsOn(test8) }
 
 publishing {
   publications { create<MavenPublication>("rfbMaven") { from(components["java"]) } }

@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -15,6 +16,7 @@ import java.util.Set;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import launchwrapper.ITweaker;
 
 public class Launch {
     /** Default tweaker to launch with when no override is specified on the command line */
@@ -149,7 +151,7 @@ public class Launch {
         ITweaker firstTweaker = null;
 
         while (!tweakClasses.isEmpty()) {
-            for (var iter = tweakClasses.iterator(); iter.hasNext(); ) {
+            for (Iterator<String> iter = tweakClasses.iterator(); iter.hasNext(); ) {
                 try {
                     final String tweakClass = iter.next();
                     if (dedupTweakClasses.contains(tweakClass)) {
@@ -176,7 +178,7 @@ public class Launch {
                 }
             }
 
-            for (var iter = tweaks.iterator(); iter.hasNext(); ) {
+            for (Iterator<ITweaker> iter = tweaks.iterator(); iter.hasNext(); ) {
                 final ITweaker tweaker = iter.next();
                 LogWrapper.logger.info(
                         "Installing tweaker {}", tweaker.getClass().getName());

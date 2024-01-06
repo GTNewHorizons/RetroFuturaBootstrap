@@ -21,7 +21,7 @@ public interface ExtensibleClassLoader {
      * @return name of this class loader; or {@code null} if
      * this class loader is not named.
      */
-    String getName();
+    String getClassLoaderName();
 
     /**
      * Appends the specified URL to the list of URLs to search for

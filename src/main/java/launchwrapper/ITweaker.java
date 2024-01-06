@@ -1,7 +1,8 @@
-package net.minecraft.launchwrapper;
+package launchwrapper;
 
 import java.io.File;
 import java.util.List;
+import net.minecraft.launchwrapper.LaunchClassLoader;
 
 /** The launch wrapper plugin interface, implement to interact with the tweaker system. */
 public interface ITweaker {

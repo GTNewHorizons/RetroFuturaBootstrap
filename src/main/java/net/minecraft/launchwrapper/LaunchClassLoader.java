@@ -1,5 +1,6 @@
 package net.minecraft.launchwrapper;
 
+import com.gtnewhorizons.retrofuturabootstrap.URLClassLoaderBase;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import java.io.Closeable;
 import java.io.File;
@@ -12,16 +13,18 @@ import java.net.URLConnection;
 import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.jar.Attributes;
 import java.util.jar.Manifest;
+import launchwrapper.IClassNameTransformer;
+import launchwrapper.IClassTransformer;
 
-public class LaunchClassLoader extends URLClassLoader implements ExtensibleClassLoader {
+public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleClassLoader {
 
     /** Internal IO buffer size */
     public static final int BUFFER_SIZE = 1 << 12;
@@ -30,7 +33,7 @@ public class LaunchClassLoader extends URLClassLoader implements ExtensibleClass
     /** A reference to the classloader that loaded this class */
     private ClassLoader parent = getClass().getClassLoader();
     /** RFB: Reference to the platform class loader that can load JRE/JDK classes */
-    private static final ClassLoader platformLoader = ClassLoader.getPlatformClassLoader();
+    private static final ClassLoader platformLoader = getPlatformClassLoader();
 
     /** An ArrayList of all class transformers used, mutable, often modified via reflection */
     private List<IClassTransformer> transformers = new ArrayList<>(2);
@@ -119,10 +122,10 @@ public class LaunchClassLoader extends URLClassLoader implements ExtensibleClass
      * @param sources The initial classpath
      */
     public LaunchClassLoader(URL[] sources) {
-        super("RFB-Launch", sources, ClassLoader.getPlatformClassLoader());
+        super("RFB-Launch", sources, getPlatformClassLoader());
         LogWrapper.configureLogging();
-        this.sources = new ArrayList<>(List.of(sources));
-        classLoaderExceptions.addAll(List.of(
+        this.sources = new ArrayList<>(Arrays.asList(sources));
+        classLoaderExceptions.addAll(Arrays.asList(
                 "java.",
                 "sun.",
                 "com.sun.",
@@ -130,7 +133,7 @@ public class LaunchClassLoader extends URLClassLoader implements ExtensibleClass
                 "org.apache.logging.",
                 "net.minecraft.launchwrapper.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
-        transformerExceptions.addAll(List.of(
+        transformerExceptions.addAll(Arrays.asList(
                 "javax.",
                 "argo.",
                 "org.objectweb.asm.",
@@ -159,8 +162,8 @@ public class LaunchClassLoader extends URLClassLoader implements ExtensibleClass
             }
             IClassTransformer xformer =
                     (IClassTransformer) xformerClass.getConstructor().newInstance();
-            if (renameTransformer == null && xformer instanceof IClassNameTransformer nameXformer) {
-                renameTransformer = nameXformer;
+            if (renameTransformer == null && xformer instanceof IClassNameTransformer) {
+                renameTransformer = (IClassNameTransformer) xformer;
             }
             transformers.add(xformer);
             LogWrapper.logger.debug("Registered class transformer {}", transformerClassName);
@@ -224,8 +227,8 @@ public class LaunchClassLoader extends URLClassLoader implements ExtensibleClass
         final Package pkg;
         final CodeSource codeSource;
         if (!packageName.isEmpty()) {
-            if (!untransformedName.startsWith("net.minecraft")
-                    && connection instanceof JarURLConnection jarConnection) {
+            if (!untransformedName.startsWith("net.minecraft") && connection instanceof JarURLConnection) {
+                final JarURLConnection jarConnection = (JarURLConnection) connection;
                 final URL codeSourceUrl = jarConnection.getJarFileURL();
                 Manifest manifest = null;
                 CodeSigner[] codeSigners = null;
@@ -256,15 +259,15 @@ public class LaunchClassLoader extends URLClassLoader implements ExtensibleClass
             try {
                 classBytes = runTransformers(untransformedName, transformedName, classBytes);
             } catch (Throwable t) {
-                var err = new ClassNotFoundException("Exception caught while transforming class " + transformedName, t);
+                ClassNotFoundException err =
+                        new ClassNotFoundException("Exception caught while transforming class " + name, t);
                 LogWrapper.logger.debug("Transformer error", err);
                 throw err;
             }
         }
         if (classBytes == null) {
             invalidClasses.add(name);
-            throw new ClassNotFoundException(
-                    "Class bytes are null for %s (%s, %s)".formatted(transformedName, name, untransformedName));
+            throw new ClassNotFoundException(String.format("Class bytes are null for %s (%s, %s)", name, name, name));
         }
         Class<?> result = defineClass(transformedName, classBytes, 0, classBytes.length, codeSource);
         cachedClasses.put(transformedName, result);
@@ -272,21 +275,8 @@ public class LaunchClassLoader extends URLClassLoader implements ExtensibleClass
     }
 
     // based off OpenJDK's own URLClassLoader
-    private Package getAndVerifyPackage(final String packageName, final Manifest manifest, final URL codeSourceURL) {
-        Package pkg = getDefinedPackage(packageName);
-        if (pkg == null) {
-            pkg = parent.getDefinedPackage(packageName);
-        }
-        if (pkg != null) {
-            if (pkg.isSealed() && !pkg.isSealed(codeSourceURL)) {
-                throw new SecurityException("Sealing violation in package " + packageName);
-            } else if (manifest != null && isSealed(packageName, manifest)) {
-                throw new SecurityException("Sealing violation in already loaded package " + packageName);
-            }
-        } else {
-            return definePackage(packageName, EMPTY, codeSourceURL);
-        }
-        return pkg;
+    public Package getAndVerifyPackage(final String packageName, final Manifest manifest, final URL codeSourceURL) {
+        return super.getAndVerifyPackage(packageName, manifest, codeSourceURL);
     }
 
     /**
@@ -320,29 +310,10 @@ public class LaunchClassLoader extends URLClassLoader implements ExtensibleClass
     }
 
     /**
-     * Checks the manifest path SEALED attribute, then checks the main attributes for the sealed property. Returns if
-     * present and equal to "true" ignoring case.
+     * {@inheritDoc}
      */
-    private boolean isSealed(final String packageName, final Manifest manifest) {
-        if (manifest == null) {
-            return false;
-        }
-        final String path = packageName.replace('.', '/') + '/';
-        final Attributes attributes = manifest.getAttributes(path);
-        if (attributes != null) {
-            final String value = attributes.getValue(Attributes.Name.SEALED);
-            if (value != null) {
-                return value.equalsIgnoreCase("true");
-            }
-        }
-        final Attributes mainAttributes = manifest.getMainAttributes();
-        if (mainAttributes != null) {
-            final String value = mainAttributes.getValue(Attributes.Name.SEALED);
-            if (value != null) {
-                return value.equalsIgnoreCase("true");
-            }
-        }
-        return false;
+    public boolean isSealed(final String packageName, final Manifest manifest) {
+        return super.isSealed(packageName, manifest);
     }
 
     /**
@@ -409,7 +380,7 @@ public class LaunchClassLoader extends URLClassLoader implements ExtensibleClass
      */
     private byte[] readFully(InputStream stream) {
         try {
-            return stream.readAllBytes();
+            return readAllBytes(stream, getOrCreateBuffer());
         } catch (Exception e) {
             LogWrapper.logger.warn("Could not read InputStream {}", stream.toString(), e);
             return new byte[0];
@@ -484,10 +455,18 @@ public class LaunchClassLoader extends URLClassLoader implements ExtensibleClass
         final URL resourceUrl = findResource(classPath);
         URLConnection conn = resourceUrl == null ? null : resourceUrl.openConnection();
         if (conn == null) {
-            // Try JRE classes
-            final URL platformUrl = platformLoader.getResource(classPath);
-            if (platformUrl != null) {
-                conn = platformUrl.openConnection();
+            if (platformLoader != null) {
+                // Try JRE classes
+                final URL platformUrl = platformLoader.getResource(classPath);
+                if (platformUrl != null) {
+                    conn = platformUrl.openConnection();
+                }
+            } else {
+                // The only way to access com.sun BootClassLoader's resources
+                final URL parentUrl = getResource(classPath);
+                if (parentUrl != null) {
+                    conn = parentUrl.openConnection();
+                }
             }
         }
         if (conn == null) {

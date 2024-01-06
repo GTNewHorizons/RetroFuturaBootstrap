@@ -2,6 +2,7 @@ package net.minecraft.launchwrapper;
 
 import java.io.File;
 import java.util.List;
+import launchwrapper.ITweaker;
 
 public class VanillaTweaker implements ITweaker {
     /** Cached arguments */

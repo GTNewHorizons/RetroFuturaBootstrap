@@ -1,4 +1,4 @@
-package net.minecraft.launchwrapper;
+package launchwrapper;
 
 /** A transformer that can modify/generate/destroy class file contents at class loading time. */
 public interface IClassTransformer {

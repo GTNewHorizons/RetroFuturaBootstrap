@@ -1,4 +1,4 @@
-package net.minecraft.launchwrapper;
+package launchwrapper;
 
 /** A transformer that can modify class names. */
 public interface IClassNameTransformer {

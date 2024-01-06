@@ -5,24 +5,26 @@ package com.gtnewhorizons.retrofuturabootstrap.test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.net.URL;
+import com.gtnewhorizons.retrofuturabootstrap.Main;
 import net.minecraft.launchwrapper.LaunchClassLoader;
 import org.junit.jupiter.api.Test;
 
 class SimpleJavaClassTest {
     @Test
-    void canLoadCollections() throws ClassNotFoundException {
-        LaunchClassLoader lcl = new LaunchClassLoader(new URL[0]);
-        assertNotNull(lcl.findClass("java.util.List"));
-        assertNotNull(lcl.findClass("java.util.Set"));
-        assertNotNull(lcl.findClass("java.util.concurrent.ConcurrentHashMap"));
+    void canLoadCollections() throws Exception {
+        try (LaunchClassLoader lcl = new LaunchClassLoader(Main.getUrlClasspathEntries())) {
+            assertNotNull(lcl.findClass("java.util.List"));
+            assertNotNull(lcl.findClass("java.util.Set"));
+            assertNotNull(lcl.findClass("java.util.concurrent.ConcurrentHashMap"));
+        }
     }
 
     @Test
-    void canLoadJavax() throws ClassNotFoundException {
-        LaunchClassLoader lcl = new LaunchClassLoader(new URL[0]);
-        assertNotNull(lcl.findClass("javax.management.JMX"));
-        assertNotNull(lcl.findClass("javax.xml.XMLConstants"));
-        assertNotNull(lcl.findClass("javax.print.MultiDoc"));
+    void canLoadJavax() throws Exception {
+        try (LaunchClassLoader lcl = new LaunchClassLoader(Main.getUrlClasspathEntries())) {
+            assertNotNull(lcl.findClass("javax.xml.XMLConstants"));
+            assertNotNull(lcl.findClass("javax.print.MultiDoc"));
+            assertNotNull(lcl.findClass("javax.management.JMX"));
+        }
     }
 }

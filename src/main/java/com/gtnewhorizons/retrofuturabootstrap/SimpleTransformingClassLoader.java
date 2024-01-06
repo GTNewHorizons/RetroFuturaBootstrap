@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import net.minecraft.launchwrapper.LogWrapper;
 
@@ -29,7 +28,7 @@ import net.minecraft.launchwrapper.LogWrapper;
  * A simpler, non-renaming version of {@link net.minecraft.launchwrapper.LaunchClassLoader} used for loading all coremod classes.
  * Allows for "compatibility transformers" to run just before class loading happens on all modded classes, including coremods.
  */
-public final class SimpleTransformingClassLoader extends URLClassLoader implements ExtensibleClassLoader {
+public final class SimpleTransformingClassLoader extends URLClassLoaderBase implements ExtensibleClassLoader {
 
     static {
         ClassLoader.registerAsParallelCapable();
@@ -38,7 +37,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoader implemen
     /** A reference to the classloader that loaded this class */
     private ClassLoader parent = getClass().getClassLoader();
     /** Reference to the platform class loader that can load JRE/JDK classes */
-    private static final ClassLoader platformLoader = ClassLoader.getPlatformClassLoader();
+    private static final ClassLoader platformLoader = getPlatformClassLoader();
 
     /** An ArrayList of all compatibility class transformers used, mutable, in order of application */
     private final List<SimpleClassTransformer> compatibilityTransformers = new ArrayList<>(4);
@@ -59,9 +58,9 @@ public final class SimpleTransformingClassLoader extends URLClassLoader implemen
      * @param sources The initial classpath
      */
     public SimpleTransformingClassLoader(String name, URL[] sources) {
-        super(name, sources, ClassLoader.getPlatformClassLoader());
+        super(name, sources, getPlatformClassLoader());
         LogWrapper.configureLogging();
-        classLoaderExceptions.addAll(List.of(
+        classLoaderExceptions.addAll(Arrays.asList(
                 "java.",
                 "sun.",
                 "com.sun.",
@@ -97,7 +96,8 @@ public final class SimpleTransformingClassLoader extends URLClassLoader implemen
         final Package pkg;
         final CodeSource codeSource;
         if (!packageName.isEmpty()) {
-            if (!name.startsWith("net.minecraft") && connection instanceof JarURLConnection jarConnection) {
+            if (!name.startsWith("net.minecraft") && connection instanceof JarURLConnection) {
+                final JarURLConnection jarConnection = (JarURLConnection) connection;
                 final URL codeSourceUrl = jarConnection.getJarFileURL();
                 Manifest manifest = null;
                 CodeSigner[] codeSigners = null;
@@ -127,12 +127,13 @@ public final class SimpleTransformingClassLoader extends URLClassLoader implemen
         try {
             classBytes = runTransformers(name, classBytes);
         } catch (Throwable t) {
-            var err = new ClassNotFoundException("Exception caught while transforming class " + name, t);
+            ClassNotFoundException err =
+                    new ClassNotFoundException("Exception caught while transforming class " + name, t);
             LogWrapper.logger.debug("Transformer error", err);
             throw err;
         }
         if (classBytes == null) {
-            throw new ClassNotFoundException("Class bytes are null for %s (%s, %s)".formatted(name, name, name));
+            throw new ClassNotFoundException(String.format("Class bytes are null for %s (%s, %s)", name, name, name));
         }
         Class<?> result = defineClass(name, classBytes, 0, classBytes.length, codeSource);
         cachedClasses.put(name, new WeakReference<>(result));
@@ -140,47 +141,16 @@ public final class SimpleTransformingClassLoader extends URLClassLoader implemen
     }
 
     // based off OpenJDK's own URLClassLoader
-    private Package getAndVerifyPackage(final String packageName, final Manifest manifest, final URL codeSourceURL) {
-        Package pkg = getDefinedPackage(packageName);
-        if (pkg == null) {
-            pkg = parent.getDefinedPackage(packageName);
-        }
-        if (pkg != null) {
-            if (pkg.isSealed() && !pkg.isSealed(codeSourceURL)) {
-                throw new SecurityException("Sealing violation in package " + packageName);
-            } else if (manifest != null && isSealed(packageName, manifest)) {
-                throw new SecurityException("Sealing violation in already loaded package " + packageName);
-            }
-        } else {
-            return definePackage(packageName, EMPTY, codeSourceURL);
-        }
-        return pkg;
+    public Package getAndVerifyPackage(final String packageName, final Manifest manifest, final URL codeSourceURL) {
+        return super.getAndVerifyPackage(packageName, manifest, codeSourceURL);
     }
 
     /**
      * Checks the manifest path SEALED attribute, then checks the main attributes for the sealed property. Returns if
      * present and equal to "true" ignoring case.
      */
-    private boolean isSealed(final String packageName, final Manifest manifest) {
-        if (manifest == null) {
-            return false;
-        }
-        final String path = packageName.replace('.', '/') + '/';
-        final Attributes attributes = manifest.getAttributes(path);
-        if (attributes != null) {
-            final String value = attributes.getValue(Attributes.Name.SEALED);
-            if (value != null) {
-                return value.equalsIgnoreCase("true");
-            }
-        }
-        final Attributes mainAttributes = manifest.getMainAttributes();
-        if (mainAttributes != null) {
-            final String value = mainAttributes.getValue(Attributes.Name.SEALED);
-            if (value != null) {
-                return value.equalsIgnoreCase("true");
-            }
-        }
-        return false;
+    public boolean isSealed(final String packageName, final Manifest manifest) {
+        return super.isSealed(packageName, manifest);
     }
 
     /**
@@ -236,7 +206,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoader implemen
 
     /** Returns the saved classpath list */
     public List<URL> getSources() {
-        return List.of(super.getURLs());
+        return Arrays.asList(super.getURLs());
     }
 
     /** Returns an immutable view of the list of compatibility transformers */
@@ -252,7 +222,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoader implemen
     /** Inserts the given compatibility transformers at the given index into the list */
     public void registerCompatibilityTransformers(int index, SimpleClassTransformer... transformers) {
         compatibilityTransformers.addAll(index, Arrays.asList(transformers));
-        for (var xformer : transformers) {
+        for (SimpleClassTransformer xformer : transformers) {
             xformer.onRegistration(this);
         }
     }
@@ -268,7 +238,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoader implemen
      */
     private byte[] readFully(InputStream stream) {
         try {
-            return stream.readAllBytes();
+            return readAllBytes(stream, null);
         } catch (Exception e) {
             LogWrapper.logger.warn("Could not read InputStream {}", stream.toString(), e);
             return new byte[0];
@@ -301,7 +271,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoader implemen
         final String classPath = name.replace('.', '/') + ".class";
         final URL resourceUrl = findResource(classPath);
         URLConnection conn = resourceUrl == null ? null : resourceUrl.openConnection();
-        if (conn == null) {
+        if (conn == null && platformLoader != null) {
             // Try JRE classes
             final URL platformUrl = platformLoader.getResource(classPath);
             if (platformUrl != null) {

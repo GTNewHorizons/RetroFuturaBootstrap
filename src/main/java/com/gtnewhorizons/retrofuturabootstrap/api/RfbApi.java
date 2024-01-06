@@ -5,12 +5,12 @@ package com.gtnewhorizons.retrofuturabootstrap.api;
  */
 public interface RfbApi {
     /**
-     * @return The Java 9+ Platform class loader, that has access to all the classes on the standard library module path.
+     * @return The Java 9+ Platform class loader, that has access to all the classes on the standard library module path. null on Java 8.
      */
     ClassLoader platformClassLoader();
 
     /**
-     * @return The Java 9+ System class loader, used for loading bootstrapping java.base classes.
+     * @return The System class loader, used for loading bootstrapping java.base classes.
      */
     ClassLoader systemClassLoader();
 

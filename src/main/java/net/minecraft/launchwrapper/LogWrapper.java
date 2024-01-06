@@ -45,7 +45,7 @@ public class LogWrapper {
         if (format.contains("{}")) {
             LogManager.getLogger(logChannel).log(level, format, data);
         } else {
-            LogManager.getLogger(logChannel).log(level, format.formatted(data));
+            LogManager.getLogger(logChannel).log(level, String.format(format, data));
         }
     }
 
@@ -55,7 +55,7 @@ public class LogWrapper {
         if (format.contains("{}")) {
             log.myLog.log(level, format, data);
         } else {
-            log.myLog.log(level, format.formatted(data));
+            log.myLog.log(level, String.format(format, data));
         }
     }
 
@@ -64,7 +64,7 @@ public class LogWrapper {
         if (format.contains("{}")) {
             LogManager.getLogger(logChannel).log(level, format, data, ex);
         } else {
-            LogManager.getLogger(logChannel).log(level, format.formatted(data), ex);
+            LogManager.getLogger(logChannel).log(level, String.format(format, data), ex);
         }
     }
 
@@ -74,7 +74,7 @@ public class LogWrapper {
         if (format.contains("{}")) {
             log.myLog.log(level, format, data, ex);
         } else {
-            log.myLog.log(level, format.formatted(data), ex);
+            log.myLog.log(level, String.format(format, data), ex);
         }
     }
 

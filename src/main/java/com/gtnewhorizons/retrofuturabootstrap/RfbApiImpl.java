@@ -11,7 +11,7 @@ public final class RfbApiImpl implements RfbApi {
 
     @Override
     public ClassLoader platformClassLoader() {
-        return ClassLoader.getPlatformClassLoader();
+        return URLClassLoaderBase.getPlatformClassLoader();
     }
 
     @Override
