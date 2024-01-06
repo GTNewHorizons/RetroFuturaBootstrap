@@ -16,7 +16,6 @@ import java.util.Set;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import launchwrapper.ITweaker;
 
 public class Launch {
     /** Default tweaker to launch with when no override is specified on the command line */

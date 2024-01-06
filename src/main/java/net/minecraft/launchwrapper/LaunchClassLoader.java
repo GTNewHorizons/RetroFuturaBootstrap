@@ -21,8 +21,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
-import launchwrapper.IClassNameTransformer;
-import launchwrapper.IClassTransformer;
 
 public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleClassLoader {
 

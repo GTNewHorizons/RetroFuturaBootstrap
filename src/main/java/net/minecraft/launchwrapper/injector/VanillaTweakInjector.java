@@ -3,7 +3,7 @@ package net.minecraft.launchwrapper.injector;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import launchwrapper.IClassTransformer;
+import net.minecraft.launchwrapper.IClassTransformer;
 
 public class VanillaTweakInjector implements IClassTransformer {
     /** empty */
