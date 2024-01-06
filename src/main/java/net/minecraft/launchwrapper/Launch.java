@@ -74,7 +74,10 @@ public class Launch {
         Thread.currentThread().setContextClassLoader(lcl);
     }
 
-    /** Hack for mixin line-number-based stacktrace detection */
+    /**
+     * Hack for mixin line-number-based stacktrace detection, the line number of the realLaunch() call has to be less than 132.
+     * See: <a href="https://github.com/LegacyModdingMC/UniMix/blob/bbd3c93bd0e1f5979dbeb983cc7f55e73a86e281/src/launchwrapper/java/org/spongepowered/asm/service/mojang/MixinServiceLaunchWrapper.java#L183-L185">org.spongepowered.asm.service.mojang.MixinServiceLaunchWrapper#getInitialPhase()</a>.
+     */
     private void launch(String[] args) {
         realLaunch(args);
     }

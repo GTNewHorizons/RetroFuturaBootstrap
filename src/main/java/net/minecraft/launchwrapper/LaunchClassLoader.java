@@ -237,8 +237,8 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
                 } catch (IOException e) {
                     // no-op
                 }
-                // LaunchClassLoader was buggy here and used the file URL instead of the jar URL, unlike regular Java
-                // ClassLoaders.
+                // LaunchClassLoader was buggy here and used the nested jar!file URL instead of just the jar URL,
+                // unlike regular Java ClassLoaders. It used the jar URL when transformer exclusions applied though.
                 final URL classSourceUrl = runTransformers ? jarConnection.getURL() : jarConnection.getJarFileURL();
                 codeSource = new CodeSource(classSourceUrl, codeSigners);
             } else {
