@@ -2,7 +2,7 @@ package net.minecraft.launchwrapper;
 
 import com.gtnewhorizons.retrofuturabootstrap.Main;
 import com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader;
-import com.gtnewhorizons.retrofuturabootstrap.URLClassLoaderBase;
+import com.gtnewhorizons.retrofuturabootstrap.URLClassLoaderWithUtilities;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
 import java.io.Closeable;
@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
 
-public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleClassLoader {
+public class LaunchClassLoader extends URLClassLoaderWithUtilities implements ExtensibleClassLoader {
 
     /** Internal IO buffer size */
     public static final int BUFFER_SIZE = 1 << 12;
@@ -207,6 +207,13 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
                 return cached;
             }
         }
+        if (parentRfb != null) {
+            final Class<?> parentCached = parentRfb.findCachedClass(name);
+            if (parentCached != null) {
+                cachedClasses.put(name, parentCached);
+                return parentCached;
+            }
+        }
         boolean runTransformers = true;
         for (final String exception : transformerExceptions) {
             if (name.startsWith(exception)) {
@@ -274,8 +281,8 @@ public class LaunchClassLoader extends URLClassLoaderBase implements ExtensibleC
         if (parentRfb != null) {
             try {
                 final SimpleClassTransformer.Context context = runTransformers
-                        ? SimpleClassTransformer.Context.LCL_WITH_TRANFORMS
-                        : SimpleClassTransformer.Context.LCL_NO_TRANFORMS;
+                        ? SimpleClassTransformer.Context.LCL_WITH_TRANSFORMS
+                        : SimpleClassTransformer.Context.LCL_NO_TRANSFORMS;
                 classBytes = runCompatibilityTransformers(
                         parentRfb.getCompatibilityTransformers(), context, transformedName, classBytes);
             } catch (Throwable t) {

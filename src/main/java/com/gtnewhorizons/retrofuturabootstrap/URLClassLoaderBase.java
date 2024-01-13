@@ -1,17 +1,13 @@
 package com.gtnewhorizons.retrofuturabootstrap;
 
-import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
-import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLStreamHandlerFactory;
-import java.util.Arrays;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
-import net.minecraft.launchwrapper.LogWrapper;
 
 /**
  * URLClassLoader base class exposing stub Java 9+ APIs in Java 8, and real ones in Java 9+ using a multi-release JAR.
@@ -119,40 +115,5 @@ public class URLClassLoaderBase extends URLClassLoader {
             }
         }
         return false;
-    }
-
-    public byte[] runCompatibilityTransformers(
-            final Iterable<SimpleClassTransformer> compatibilityTransformers,
-            final SimpleClassTransformer.Context context,
-            final String className,
-            byte[] basicClass) {
-        int xformerIndex = 0;
-        for (SimpleClassTransformer xformer : compatibilityTransformers) {
-            try {
-                final byte[] newKlass =
-                        xformer.transformClass((ExtensibleClassLoader) this, context, className, basicClass);
-                if (Main.cfgDumpLoadedClassesPerTransformer
-                        && newKlass != null
-                        && !Arrays.equals(basicClass, newKlass)) {
-                    Main.dumpClass(
-                            this.getClassLoaderName(),
-                            String.format("%s__S%03d_%s", className, xformerIndex, xformer.name()),
-                            basicClass);
-                }
-                basicClass = newKlass;
-            } catch (UnsupportedOperationException e) {
-                if (e.getMessage().contains("requires ASM")) {
-                    LogWrapper.logger.warn(
-                            "ASM transformer {} encountered a newer classfile ({}) than supported: {}",
-                            xformer.getClass().getName(),
-                            className,
-                            e.getMessage());
-                    continue;
-                }
-                throw e;
-            }
-            xformerIndex++;
-        }
-        return basicClass;
     }
 }

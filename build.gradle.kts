@@ -41,11 +41,13 @@ dependencies {
   testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
+  compileOnly("org.jetbrains:annotations:24.1.0")
   api("net.sf.jopt-simple:jopt-simple:4.5")
   api("org.ow2.asm:asm-commons:${asmVersion}")
   api("org.ow2.asm:asm-tree:${asmVersion}")
   api("org.ow2.asm:asm-util:${asmVersion}")
   api("org.ow2.asm:asm-analysis:${asmVersion}")
+  api("org.ow2.asm:asm-deprecated:7.1")
   compileOnly("org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209")
   api("org.apache.logging.log4j:log4j-core:2.0-beta9-fixed")
   api("org.apache.logging.log4j:log4j-api:2.0-beta9-fixed")

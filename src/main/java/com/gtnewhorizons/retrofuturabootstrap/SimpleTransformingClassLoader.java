@@ -28,7 +28,7 @@ import net.minecraft.launchwrapper.LogWrapper;
  * A simpler, non-renaming version of {@link net.minecraft.launchwrapper.LaunchClassLoader} used for loading all coremod classes.
  * Allows for "compatibility transformers" to run just before class loading happens on all modded classes, including coremods.
  */
-public final class SimpleTransformingClassLoader extends URLClassLoaderBase implements ExtensibleClassLoader {
+public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtilities implements ExtensibleClassLoader {
 
     static {
         ClassLoader.registerAsParallelCapable();
@@ -67,6 +67,18 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderBase impl
                 "org.apache.logging.",
                 "LZMA.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
+    }
+
+    /** Check the cache for a class that already has been loaded */
+    public Class<?> findCachedClass(final String name) {
+        final WeakReference<Class<?>> cached = cachedClasses.get(name);
+        if (cached != null) {
+            final Class<?> cachedStrong = cached.get();
+            if (cachedStrong != null) {
+                return cachedStrong;
+            }
+        }
+        return null;
     }
 
     /**

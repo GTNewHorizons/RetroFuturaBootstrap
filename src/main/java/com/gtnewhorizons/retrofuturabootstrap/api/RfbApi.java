@@ -1,5 +1,8 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
+import com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader;
+import net.minecraft.launchwrapper.LaunchClassLoader;
+
 /**
  * The public Java 8-compatible RetroFuturaBootstrap API
  */
@@ -10,12 +13,17 @@ public interface RfbApi {
     ClassLoader platformClassLoader();
 
     /**
-     * @return The System class loader, used for loading bootstrapping java.base classes.
+     * @return The System class loader, used for loading RFB itself and compatibility transformers.
      */
     ClassLoader systemClassLoader();
 
     /**
-     * @return The {@code LaunchClassLoader} responsible for loading Minecraft and mod classes.
+     * @return The {@link com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader} responsible for loading coremod and mod loader classes.
      */
-    ExtensibleClassLoader launchClassLoader();
+    SimpleTransformingClassLoader compatClassLoader();
+
+    /**
+     * @return The {@link net.minecraft.launchwrapper.LaunchClassLoader} responsible for loading Minecraft and mod classes.
+     */
+    LaunchClassLoader launchClassLoader();
 }
