@@ -2,6 +2,8 @@ package com.gtnewhorizons.retrofuturabootstrap.api;
 
 import java.net.URL;
 import java.net.URLClassLoader;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Accessor interface implemented on RFB's ClassLoader instances to allow accessing some normally-protected methods.
@@ -12,6 +14,7 @@ public interface ExtensibleClassLoader {
     /**
      * @return this as a {@link URLClassLoader}, all implementations of this interface are classes extending URLClassLoader.
      */
+    @NotNull
     URLClassLoader asURLClassLoader();
 
     /**
@@ -21,6 +24,7 @@ public interface ExtensibleClassLoader {
      * @return name of this class loader; or {@code null} if
      * this class loader is not named.
      */
+    @Nullable
     String getClassLoaderName();
 
     /**
@@ -33,7 +37,7 @@ public interface ExtensibleClassLoader {
      *
      * @param url the URL to be added to the search path of URLs
      */
-    void addURL(URL url);
+    void addURL(@Nullable URL url);
 
     /**
      * Finds and loads the class with the specified name from the URL search
@@ -46,5 +50,6 @@ public interface ExtensibleClassLoader {
      *            or if the loader is closed.
      * @throws    NullPointerException if {@code name} is {@code null}.
      */
-    Class<?> findClass(final String name) throws ClassNotFoundException;
+    @NotNull
+    Class<?> findClass(final @NotNull String name) throws ClassNotFoundException;
 }

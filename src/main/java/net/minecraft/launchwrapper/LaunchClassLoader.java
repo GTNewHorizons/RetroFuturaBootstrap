@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
+import org.jetbrains.annotations.NotNull;
 
 public class LaunchClassLoader extends URLClassLoaderWithUtilities implements ExtensibleClassLoader {
 
@@ -192,7 +193,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
      * </ol>
      */
     @Override
-    public Class<?> findClass(final String name) throws ClassNotFoundException {
+    public @NotNull Class<?> findClass(final @NotNull String name) throws ClassNotFoundException {
         if (invalidClasses.contains(name)) {
             throw new ClassNotFoundException(name + " in invalid class cache");
         }
@@ -554,7 +555,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     }
 
     @Override
-    public URLClassLoader asURLClassLoader() {
+    public @NotNull URLClassLoader asURLClassLoader() {
         return this;
     }
 }

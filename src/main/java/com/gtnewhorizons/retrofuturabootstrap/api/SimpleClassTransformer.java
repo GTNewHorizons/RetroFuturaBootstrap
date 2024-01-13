@@ -1,5 +1,9 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
+import org.intellij.lang.annotations.Pattern;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * A simple transformer that takes in class bytes and outputs different class bytes.
  * It should be thread-safe, and not change class names. It should also have a public no-arguments constructor.
@@ -16,21 +20,23 @@ public interface SimpleClassTransformer {
     }
 
     /**
-     * @return A stable identifier for this transformer that can be used to declare dependencies between transformers, also used during class dumps for a part of a file name.
+     * @return A stable identifier for this transformer that can be used to declare dependencies between transformers, also used during class dumps for a part of a file name. Use only [a-z0-9_] characters for consistency.
      */
+    @NotNull
+    @Pattern("[a-z0-9_]+")
     String name();
 
     /**
-     * @return Array of "plugin:transformer" strings that this transformer should run after, include "*" to "pin" the transformer to the end of the list instead of the beginning.
+     * @return Array of "plugin:transformer" strings that this transformer should run after, include "*" to "pin" the transformer to the end of the list instead of the beginning. Return null if none.
      */
-    default String[] sortAfter() {
+    default @NotNull String @Nullable [] sortAfter() {
         return null;
     }
 
     /**
-     * @return Array of "plugin:transformer" strings that this transformer should run before.
+     * @return Array of "plugin:transformer" strings that this transformer should run before. Return null if none.
      */
-    default String[] sortBefore() {
+    default @NotNull String @Nullable [] sortBefore() {
         return null;
     }
 
@@ -38,7 +44,7 @@ public interface SimpleClassTransformer {
      * Called when this transformer is registered with a ClassLoader in RFB (this will happen twice, once for LaunchClassLoader and once for its parent loader).
      * @param classLoader The loader this transformer is being registered with now.
      */
-    default void onRegistration(ExtensibleClassLoader classLoader) {}
+    default void onRegistration(@NotNull ExtensibleClassLoader classLoader) {}
 
     /**
      * A fast scanning function that is used to determine if class transformations should be skipped altogether (if all transformers return false).
@@ -49,7 +55,10 @@ public interface SimpleClassTransformer {
      * @return true if the class will be transformed by this class transformer.
      */
     boolean shouldTransformClass(
-            ExtensibleClassLoader classLoader, Context context, String className, byte[] classBytes);
+            @NotNull ExtensibleClassLoader classLoader,
+            @NotNull Context context,
+            @NotNull String className,
+            byte @Nullable [] classBytes);
 
     /**
      * (Optionally) transform a given class. No ClassReader flags are used for maximum efficiency, so stack frames are not expanded.
@@ -59,5 +68,8 @@ public interface SimpleClassTransformer {
      * @param classNode The handle to the ASM-parsed class to modify, and metadata used for class writing.
      */
     void transformClass(
-            ExtensibleClassLoader classLoader, Context context, String className, ClassNodeHandle classNode);
+            @NotNull ExtensibleClassLoader classLoader,
+            @NotNull Context context,
+            @NotNull String className,
+            @NotNull ClassNodeHandle classNode);
 }

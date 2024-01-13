@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
 import net.minecraft.launchwrapper.LogWrapper;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A simpler, non-renaming version of {@link net.minecraft.launchwrapper.LaunchClassLoader} used for loading all coremod classes.
@@ -85,7 +86,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
      * Find/load a class by name
      */
     @Override
-    public Class<?> findClass(final String name) throws ClassNotFoundException {
+    public @NotNull Class<?> findClass(final @NotNull String name) throws ClassNotFoundException {
         for (final String exception : classLoaderExceptions) {
             if (name.startsWith(exception)) {
                 return parent.loadClass(name);
@@ -296,7 +297,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
     }
 
     @Override
-    public URLClassLoader asURLClassLoader() {
+    public @NotNull URLClassLoader asURLClassLoader() {
         return this;
     }
 }
