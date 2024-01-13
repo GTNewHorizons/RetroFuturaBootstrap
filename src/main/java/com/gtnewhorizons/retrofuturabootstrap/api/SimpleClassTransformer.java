@@ -20,10 +20,10 @@ public interface SimpleClassTransformer {
     }
 
     /**
-     * @return A stable identifier for this transformer that can be used to declare dependencies between transformers, also used during class dumps for a part of a file name. Use only [a-z0-9_] characters for consistency.
+     * @return A stable identifier for this transformer that can be used to declare dependencies between transformers, also used during class dumps for a part of a file name. Use only [a-z0-9-] characters for consistency.
      */
     @NotNull
-    @Pattern("[a-z0-9_]+")
+    @Pattern("[a-z0-9-]+")
     String name();
 
     /**

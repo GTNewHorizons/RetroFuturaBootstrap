@@ -13,7 +13,7 @@ For example, patching bugs or new Java version support into the Forge Mod Loader
 You can add compatibility plugins into your jar by following these steps:
  - Implement the `com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPlugin` interface on your plugin class
  - Define `com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer`s and add metadata about the transformer order and exclusions to your main plugin class
- - Pick a unique plugin ID you're very unlikely to change, made up of ASCII characters, the letters must be lower-case
+ - Pick a unique plugin ID you're very unlikely to change, made up of lower-case letters, digits and dashes for consistency (`[a-z0-9-]+`).
  - Add a UTF-8 properties file declaring information about your plugin to `META-INF/rfb-plugin/my-plugin-id.properties` in your jar (or runtime classpath in a development environments):
 ```properties
 # RetroFuturaBootstrap plugin property file
