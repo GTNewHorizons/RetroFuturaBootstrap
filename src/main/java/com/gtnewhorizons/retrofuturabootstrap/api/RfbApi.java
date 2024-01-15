@@ -1,7 +1,6 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
 import com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader;
-import net.minecraft.launchwrapper.LaunchClassLoader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,10 +25,4 @@ public interface RfbApi {
      */
     @NotNull
     SimpleTransformingClassLoader compatClassLoader();
-
-    /**
-     * @return The {@link net.minecraft.launchwrapper.LaunchClassLoader} responsible for loading Minecraft and mod classes. null early in the loading process.
-     */
-    @Nullable
-    LaunchClassLoader launchClassLoader();
 }

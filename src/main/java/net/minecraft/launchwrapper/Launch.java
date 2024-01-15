@@ -1,6 +1,7 @@
 package net.minecraft.launchwrapper;
 
 import com.gtnewhorizons.retrofuturabootstrap.Main;
+import com.gtnewhorizons.retrofuturabootstrap.PluginLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import java.io.File;
 import java.io.IOException;
@@ -24,6 +25,14 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 public class Launch {
+    /**
+     * Hack for mixin line-number-based stacktrace detection, the line number of the realLaunch() call has to be less than 132.
+     * See: <a href="https://github.com/LegacyModdingMC/UniMix/blob/bbd3c93bd0e1f5979dbeb983cc7f55e73a86e281/src/launchwrapper/java/org/spongepowered/asm/service/mojang/MixinServiceLaunchWrapper.java#L183-L185">org.spongepowered.asm.service.mojang.MixinServiceLaunchWrapper#getInitialPhase()</a>.
+     */
+    private void launch(String[] args) {
+        realLaunch(args);
+    }
+
     /** Default tweaker to launch with when no override is specified on the command line */
     private static final String DEFAULT_TWEAK = "net.minecraft.launchwrapper.VanillaTweaker";
     /** Game root directory (.minecraft) path, set from commandline options */
@@ -54,11 +63,11 @@ public class Launch {
     /** Holds a reference to the original error stream, before it gets redirected to logs */
     private static final PrintStream originalSysErr = System.err;
 
-    /** RFL: Standard blackboard key, an ArrayList(String) of tweakers, mutable */
+    /** RFB: Standard blackboard key, an ArrayList(String) of tweakers, mutable */
     public static final String BLACKBOARD_TWEAK_CLASSES = "TweakClasses";
-    /** RFL: Standard blackboard key, an ArrayList(String) of commandline arguments, mutable */
+    /** RFB: Standard blackboard key, an ArrayList(String) of commandline arguments, mutable */
     public static final String BLACKBOARD_ARGUMENT_LIST = "ArgumentList";
-    /** RFL: Standard blackboard key, an ArrayList(ITweaker) of the currently loaded tweakers */
+    /** RFB: Standard blackboard key, an ArrayList(ITweaker) of the currently loaded tweakers */
     public static final String BLACKBOARD_TWEAKS = "Tweaks";
 
     /**
@@ -78,14 +87,6 @@ public class Launch {
                 new LaunchClassLoader(parentLoader.asURLClassLoader().getURLs());
         classLoader = lcl;
         Thread.currentThread().setContextClassLoader(lcl);
-    }
-
-    /**
-     * Hack for mixin line-number-based stacktrace detection, the line number of the realLaunch() call has to be less than 132.
-     * See: <a href="https://github.com/LegacyModdingMC/UniMix/blob/bbd3c93bd0e1f5979dbeb983cc7f55e73a86e281/src/launchwrapper/java/org/spongepowered/asm/service/mojang/MixinServiceLaunchWrapper.java#L183-L185">org.spongepowered.asm.service.mojang.MixinServiceLaunchWrapper#getInitialPhase()</a>.
-     */
-    private void launch(String[] args) {
-        realLaunch(args);
     }
 
     /**
@@ -148,6 +149,10 @@ public class Launch {
         final List<String> tweakClasses = new ArrayList<>(options.valuesOf(aTweakClass));
         final List<String> remainingArgs = options.valuesOf(aRemainder);
 
+        Main.initialGameVersion = version;
+        Main.initialGameDir = gameDir;
+        Main.initialAssetsDir = assetsDir;
+
         if ((Main.cfgDumpLoadedClasses || Main.cfgDumpLoadedClassesPerTransformer)
                 && Main.classDumpDirectory.get() == null) {
             final Path gamePath = gameDir.toPath();
@@ -178,6 +183,8 @@ public class Launch {
         blackboard.put(BLACKBOARD_ARGUMENT_LIST, argumentList);
         final List<ITweaker> tweaks = new ArrayList<>();
         blackboard.put(BLACKBOARD_TWEAKS, tweaks);
+
+        PluginLoader.initializePlugins();
 
         final Set<String> dedupTweakClasses = new HashSet<>();
         final List<ITweaker> allTweakers = new ArrayList<>();

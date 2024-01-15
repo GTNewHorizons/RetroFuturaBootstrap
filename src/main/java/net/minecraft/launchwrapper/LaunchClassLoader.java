@@ -135,6 +135,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 "sun.",
                 "org.lwjgl.",
                 "org.apache.logging.",
+                "org.objectweb.asm.",
                 "net.minecraft.launchwrapper.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
         transformerExceptions.addAll(Arrays.asList(
@@ -285,7 +286,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                         ? SimpleClassTransformer.Context.LCL_WITH_TRANSFORMS
                         : SimpleClassTransformer.Context.LCL_NO_TRANSFORMS;
                 classBytes = runCompatibilityTransformers(
-                        parentRfb.getCompatibilityTransformers(), context, transformedName, classBytes);
+                        Main.getCompatibilityTransformers(), context, transformedName, classBytes);
             } catch (Throwable t) {
                 ClassNotFoundException err =
                         new ClassNotFoundException("Exception caught while transforming class " + name, t);

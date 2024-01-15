@@ -5,7 +5,6 @@ import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
-import net.minecraft.launchwrapper.LogWrapper;
 
 /**
  * Non-Java-version-specific extensions to {@link URLClassLoaderBase}
@@ -55,7 +54,7 @@ public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
                 }
             } catch (UnsupportedOperationException e) {
                 if (e.getMessage().contains("requires ASM")) {
-                    LogWrapper.logger.warn(
+                    Main.logger.warn(
                             "ASM transformer {} encountered a newer classfile ({}) than supported: {}",
                             xformer.getClass().getName(),
                             className,

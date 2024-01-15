@@ -1,8 +1,6 @@
 package com.gtnewhorizons.retrofuturabootstrap;
 
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbApi;
-import net.minecraft.launchwrapper.Launch;
-import net.minecraft.launchwrapper.LaunchClassLoader;
 import org.jetbrains.annotations.NotNull;
 
 public final class RfbApiImpl implements RfbApi {
@@ -23,10 +21,5 @@ public final class RfbApiImpl implements RfbApi {
     @Override
     public @NotNull SimpleTransformingClassLoader compatClassLoader() {
         return Main.compatLoader;
-    }
-
-    @Override
-    public LaunchClassLoader launchClassLoader() {
-        return Launch.classLoader;
     }
 }

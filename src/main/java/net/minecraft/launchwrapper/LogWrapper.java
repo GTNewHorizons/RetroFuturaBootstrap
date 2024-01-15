@@ -1,5 +1,6 @@
 package net.minecraft.launchwrapper;
 
+import com.gtnewhorizons.retrofuturabootstrap.Main;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,6 +27,7 @@ public class LogWrapper {
         }
         log.myLog = LogManager.getLogger("LaunchWrapper");
         logger = log.myLog;
+        Main.logger = log.myLog;
         configured = true;
     }
 
@@ -33,6 +35,7 @@ public class LogWrapper {
     public static void retarget(Logger to) {
         log.myLog = to;
         logger = log.myLog;
+        Main.logger = log.myLog;
     }
 
     /**

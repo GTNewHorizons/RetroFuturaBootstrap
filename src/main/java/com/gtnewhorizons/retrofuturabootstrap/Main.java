@@ -1,5 +1,6 @@
 package com.gtnewhorizons.retrofuturabootstrap;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -10,7 +11,10 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -18,11 +22,17 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import net.minecraft.launchwrapper.LogWrapper;
+import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
 public class Main {
     /** The compatibility ClassLoader that's a parent of LaunchClassLoader. */
     public static SimpleTransformingClassLoader compatLoader;
+    /** An ArrayList of all compatibility class transformers used, mutable, in order of application */
+    private static final AtomicReference<@NotNull SimpleClassTransformer[]> compatibilityTransformers =
+            new AtomicReference<>(new SimpleClassTransformer[0]);
     /** The ClassLoader that loaded this class. */
     public static final ClassLoader appClassLoader = Main.class.getClassLoader();
 
@@ -63,6 +73,15 @@ public class Main {
     /** The target class dumping directory, initialized during commandline option parsing. */
     public static AtomicReference<Path> classDumpDirectory = new AtomicReference<>(null);
 
+    /** Game version/profile name as parsed during early startup. */
+    public static String initialGameVersion;
+    /** Game directory as parsed during early startup. */
+    public static File initialGameDir;
+    /** Assets directory as parsed during early startup. */
+    public static File initialAssetsDir;
+    /** Public logger accessor for convenience */
+    public static Logger logger = LogManager.getLogger("LaunchWrapper");
+
     private static final ExecutorService classDumpingService = cfgDumpClassesAsynchronously
             ? Executors.newFixedThreadPool(
                     Math.min(4, Runtime.getRuntime().availableProcessors()), new ThreadFactory() {
@@ -86,12 +105,35 @@ public class Main {
                     try {
                         return new File(path).toURI().toURL();
                     } catch (MalformedURLException e) {
-                        LogWrapper.warning("Could not parse {} into an URL", path, e);
+                        logger.warn("Could not parse {} into an URL", path, e);
                         return null;
                     }
                 })
                 .filter(Objects::nonNull)
                 .toArray(URL[]::new);
+    }
+
+    /**
+     * @return An immutable view on compatibility transformers.
+     */
+    public static List<SimpleClassTransformer> getCompatibilityTransformers() {
+        return Collections.unmodifiableList(Arrays.asList(compatibilityTransformers.get()));
+    }
+
+    /**
+     * Updates the compatibility transformers list using the given function, mutator might be called multiple times if there's multiple threads racing to modify the list.
+     * @param mutator A function that modifies a mutable List of compatibility transformers.
+     */
+    public static void mutateCompatibilityTransformers(Consumer<List<SimpleClassTransformer>> mutator) {
+        while (true) {
+            final SimpleClassTransformer[] original = compatibilityTransformers.get();
+            final ArrayList<SimpleClassTransformer> mutable = new ArrayList<>(Arrays.asList(original));
+            mutator.accept(mutable);
+            final SimpleClassTransformer[] modified = mutable.toArray(new SimpleClassTransformer[0]);
+            if (compatibilityTransformers.compareAndSet(original, modified)) {
+                break;
+            }
+        }
     }
 
     public static void main(String[] args) throws Throwable {
@@ -112,9 +154,9 @@ public class Main {
             if (classDumpingService != null) {
                 classDumpingService.shutdown();
                 if (!classDumpingService.isTerminated()) {
-                    LogWrapper.logger.info("Waiting for final class dumps to finish...");
+                    logger.info("Waiting for final class dumps to finish...");
                     if (!classDumpingService.awaitTermination(10, TimeUnit.SECONDS)) {
-                        LogWrapper.logger.warn("Classes did not finish dumping in 10 seconds, aborting.");
+                        logger.warn("Classes did not finish dumping in 10 seconds, aborting.");
                         classDumpingService.shutdownNow();
                     }
                 }
@@ -152,7 +194,7 @@ public class Main {
                                 StandardOpenOption.WRITE,
                                 StandardOpenOption.TRUNCATE_EXISTING);
                     } catch (IOException e) {
-                        LogWrapper.logger.warn("Could not save transformed class", e);
+                        logger.warn("Could not save transformed class", e);
                     }
                 });
             } else {
@@ -165,7 +207,7 @@ public class Main {
                         StandardOpenOption.TRUNCATE_EXISTING);
             }
         } catch (IOException | RejectedExecutionException e) {
-            LogWrapper.logger.warn("Could not save transformed class", e);
+            logger.warn("Could not save transformed class", e);
         }
     }
 }

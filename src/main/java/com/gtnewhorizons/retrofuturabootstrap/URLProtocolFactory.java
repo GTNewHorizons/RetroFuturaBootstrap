@@ -3,7 +3,6 @@ package com.gtnewhorizons.retrofuturabootstrap;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
-import net.minecraft.launchwrapper.LogWrapper;
 
 /**
  * Helper to redirect java.protocol.handler.pkgs classes to use RFB's compat ClassLoader instead of the system ClassLoader.
@@ -29,7 +28,7 @@ public class URLProtocolFactory implements URLStreamHandlerFactory {
                 Class<?> cls = null;
                 cls = Class.forName(clsName, true, Main.compatLoader);
                 if (!URLStreamHandler.class.isAssignableFrom(cls)) {
-                    LogWrapper.logger.warn("Class {} is not assignable to a URLStreamHandler", cls.getName());
+                    Main.logger.warn("Class {} is not assignable to a URLStreamHandler", cls.getName());
                     continue;
                 }
                 Object tmp = cls.getConstructor().newInstance();

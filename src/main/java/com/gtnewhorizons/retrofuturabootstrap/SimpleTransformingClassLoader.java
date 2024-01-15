@@ -13,16 +13,13 @@ import java.net.URLClassLoader;
 import java.net.URLConnection;
 import java.security.CodeSigner;
 import java.security.CodeSource;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
-import net.minecraft.launchwrapper.LogWrapper;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -40,8 +37,6 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
     /** Reference to the platform class loader that can load JRE/JDK classes */
     private static final ClassLoader platformLoader = getPlatformClassLoader();
 
-    /** An ArrayList of all compatibility class transformers used, mutable, in order of application */
-    private final List<SimpleClassTransformer> compatibilityTransformers = new ArrayList<>(4);
     /** A ConcurrentHashMap cache of all classes loaded via this loader */
     private final Map<String, WeakReference<Class<?>>> cachedClasses = new ConcurrentHashMap<>();
     /** A ConcurrentHashMap cache of class bytes loaded via this classloader */
@@ -60,7 +55,6 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
      */
     public SimpleTransformingClassLoader(String name, URL[] sources) {
         super(name, sources, getPlatformClassLoader());
-        LogWrapper.configureLogging();
         classLoaderExceptions.addAll(Arrays.asList(
                 "java.",
                 "jdk.internal.",
@@ -142,11 +136,11 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
                 Main.dumpClass(this.getClassLoaderName(), name + "_000_pretransform", classBytes);
             }
             classBytes = runCompatibilityTransformers(
-                    compatibilityTransformers, SimpleClassTransformer.Context.SYSTEM, name, classBytes);
+                    Main.getCompatibilityTransformers(), SimpleClassTransformer.Context.SYSTEM, name, classBytes);
         } catch (Throwable t) {
             ClassNotFoundException err =
                     new ClassNotFoundException("Exception caught while transforming class " + name, t);
-            LogWrapper.logger.debug("Transformer error", err);
+            Main.logger.debug("Transformer error", err);
             throw err;
         }
         if (classBytes == null) {
@@ -184,7 +178,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
             }
             return url.openConnection();
         } catch (Exception e) {
-            LogWrapper.logger.debug("Couldn't findCodeSourceConnectionFor {}: {}", name, e.getMessage());
+            Main.logger.debug("Couldn't findCodeSourceConnectionFor {}: {}", name, e.getMessage());
             return null;
         }
     }
@@ -202,29 +196,6 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
         return Arrays.asList(super.getURLs());
     }
 
-    /** Returns an immutable view of the list of compatibility transformers */
-    public List<SimpleClassTransformer> getCompatibilityTransformers() {
-        return Collections.unmodifiableList(compatibilityTransformers);
-    }
-
-    /** Removes a compatibility transformer by index */
-    public void removeCompatibilityTransformer(int index) {
-        compatibilityTransformers.remove(index);
-    }
-
-    /** Inserts the given compatibility transformers at the given index into the list */
-    public void registerCompatibilityTransformers(int index, SimpleClassTransformer... transformers) {
-        compatibilityTransformers.addAll(index, Arrays.asList(transformers));
-        for (SimpleClassTransformer xformer : transformers) {
-            xformer.onRegistration(this);
-        }
-    }
-
-    /** Inserts the given compatibility transformers at the end of the list */
-    public void registerCompatibilityTransformers(SimpleClassTransformer... transformers) {
-        registerCompatibilityTransformers(compatibilityTransformers.size() - 1, transformers);
-    }
-
     /**
      * Tries to fully read the input stream into a byte array<strike>, using getOrCreateBuffer() as the IO
      * buffer</strike>. Returns an empty array and logs a warning if any exception happens.
@@ -233,7 +204,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
         try {
             return readAllBytes(stream, null);
         } catch (Exception e) {
-            LogWrapper.logger.warn("Could not read InputStream {}", stream.toString(), e);
+            Main.logger.warn("Could not read InputStream {}", stream.toString(), e);
             return new byte[0];
         }
     }
