@@ -26,7 +26,7 @@ version=0.0.1-alpha.1
 # If versions conflicting with other plugins are found, the newest version is used and the other plugins won't load with a warning. Use versionConstraints to mark any incompatibilities.
 additionalVersions=mixin@0.8.5; my-old-id@0.0.10
 # The class implementing com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPlugin (required)
-class=io.github.mymod.rfb.RfbPlugin
+className=io.github.mymod.rfb.RfbPlugin
 # Additional packages on top of the plugin's parent package to exclude from self-transformation by the plugin
 transformerExclusions=io.github.mymod.util; io.github.mymod.common
 # Version constraints on other plugins that would be loaded with this plugin. Failing these checks will provide an error to the user, with a config override to ignore conflicts.

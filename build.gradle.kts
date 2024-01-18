@@ -108,6 +108,11 @@ tasks.jar {
   manifest.attributes["Implementation-Vendor"] = "GTNewHorizons"
 }
 
+tasks.processResources {
+  inputs.property("version", project.version.toString())
+  filesMatching("**/*.properties") { expand("version" to project.version.toString()) }
+}
+
 tasks.withType<Javadoc>().configureEach {
   this.javadocTool.set(
       javaToolchains.javadocToolFor {
