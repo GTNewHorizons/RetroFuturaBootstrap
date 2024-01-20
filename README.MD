@@ -30,6 +30,7 @@ className=io.github.mymod.rfb.RfbPlugin
 # Additional packages on top of the plugin's parent package to exclude from self-transformation by the plugin
 transformerExclusions=io.github.mymod.util; io.github.mymod.common
 # Version constraints on other plugins that would be loaded with this plugin. Failing these checks will provide an error to the user, with a config override to ignore conflicts.
+# Use an impossible-to-satisfy version range to denote a conflict.
 # Dependency constraint parsing follows https://maven.apache.org/ref/3.9.6/maven-artifact/apidocs/org/apache/maven/artifact/versioning/VersionRange.html#createFromVersionSpec(java.lang.String)
 versionConstraints=rfb@[1.0.0,); some-plugin@[0.0.1,0.0.3],[0.2.0,); mixin@[0.8.2,)
 # Plugin load order properties don't restrict the actual registered transformers from registering in different positions in the transformer chain!
@@ -44,4 +45,5 @@ loadRequires=mixin
 
 Standard plugin IDs include:
  - `rfb` - metadata about RetroFuturaBootstrap itself
+ - `java` - metadata about the Java version running
  - `mixin` - the [Mixin](https://github.com/fabricmc/Mixin/) library for convenient bytecode manipulation

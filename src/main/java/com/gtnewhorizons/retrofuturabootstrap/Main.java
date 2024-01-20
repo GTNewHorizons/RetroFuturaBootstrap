@@ -82,6 +82,9 @@ public class Main {
     /** Public logger accessor for convenience */
     public static Logger logger = LogManager.getLogger("LaunchWrapper");
 
+    public static final String JAVA_VERSION = URLClassLoaderBase.getJavaVersion();
+    public static final int JAVA_MAJOR_VERSION = URLClassLoaderBase.getJavaMajorVersion();
+
     private static final ExecutorService classDumpingService = cfgDumpClassesAsynchronously
             ? Executors.newFixedThreadPool(
                     Math.min(4, Runtime.getRuntime().availableProcessors()), new ThreadFactory() {

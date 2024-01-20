@@ -1,8 +1,8 @@
 package net.minecraft.launchwrapper;
 
 import com.gtnewhorizons.retrofuturabootstrap.Main;
-import com.gtnewhorizons.retrofuturabootstrap.PluginLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
+import com.gtnewhorizons.retrofuturabootstrap.plugin.PluginLoader;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;

@@ -89,6 +89,13 @@ public class DefaultArtifactVersion implements ArtifactVersion {
     }
 
     public final void parseVersion(String version) {
+
+        // RFB Patch: remove semver build metadata
+        final int plusIndex = version.indexOf('+');
+        if (plusIndex >= 0) {
+            version = version.substring(0, plusIndex);
+        }
+
         comparable = new ComparableVersion(version);
 
         int index = version.indexOf('-');

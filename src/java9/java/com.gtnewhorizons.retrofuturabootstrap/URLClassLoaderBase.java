@@ -96,4 +96,23 @@ public class URLClassLoaderBase extends URLClassLoader {
         }
         return false;
     }
+
+    /**
+     * @return Java runtime version, for example 17.0.10 or 1.8.0.402-b06 (_ replaced with ., anything after + stripped)
+     */
+    public static String getJavaVersion() {
+        String ver = Runtime.version().toString();
+        final int plus = ver.indexOf('+');
+        if (plus >= 0) {
+            ver = ver.substring(0, plus);
+        }
+        return ver.replace('_', '.');
+    }
+
+    /**
+     * @return The major java version, like 8 or 17.
+     */
+    public static int getJavaMajorVersion() {
+        return Runtime.version().version().get(0);
+    }
 }

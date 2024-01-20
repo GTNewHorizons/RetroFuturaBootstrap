@@ -1,9 +1,15 @@
-package com.gtnewhorizons.retrofuturabootstrap;
+package com.gtnewhorizons.retrofuturabootstrap.plugin;
 
+import com.gtnewhorizons.retrofuturabootstrap.BuildConfig;
+import com.gtnewhorizons.retrofuturabootstrap.Main;
+import com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPlugin;
 import com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPluginMetadata;
+import com.gtnewhorizons.retrofuturabootstrap.versioning.DefaultArtifactVersion;
 import java.io.IOException;
 import java.io.Reader;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
@@ -19,10 +25,13 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 
 /** Class to scan and load RFB {@link com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPlugin}s */
@@ -31,6 +40,11 @@ public final class PluginLoader {
     public static final String META_INF = "META-INF";
     public static final String RFB_PLUGINS_DIR = "rfb-plugin";
     private static final ArrayList<FileSystem> jarFilesystems = new ArrayList<>();
+    // Metadata of plugins in loading order
+    private static final ArrayList<CompatibilityTransformerPluginMetadata> loadedPluginMetadata = new ArrayList<>();
+    private static final Map<String, CompatibilityTransformerPluginMetadata> loadedPluginMetadataById = new HashMap<>();
+    private static final ArrayList<CompatibilityTransformerPlugin> loadedPlugins = new ArrayList<>();
+    private static final Map<String, CompatibilityTransformerPlugin> loadedPluginsById = new HashMap<>();
 
     public static void initializePlugins() {
         final List<Path> pluginManifests = findPluginManifests();
@@ -45,17 +59,108 @@ public final class PluginLoader {
                     props.load(reader);
                 }
                 final CompatibilityTransformerPluginMetadata meta =
-                        new CompatibilityTransformerPluginMetadata(id, props);
+                        new CompatibilityTransformerPluginMetadata(manifest.toUri(), id, props);
                 pluginMetadata.add(meta);
             } catch (Exception e) {
                 Main.logger.error("Invalid plugin manifest {}", manifest, e);
             }
         }
-        for (CompatibilityTransformerPluginMetadata meta : pluginMetadata) {
-            Main.logger.warn("{}", meta);
+        pluginMetadata.add(makeRfbMetadata());
+        pluginMetadata.add(makeJavaMetadata());
+
+        final Optional<List<CompatibilityTransformerPluginMetadata>> sortedMetadata =
+                new ConflictResolver(pluginMetadata).resolve();
+        if (!sortedMetadata.isPresent()) {
+            throw new RuntimeException(
+                    "There was a critical error during RFB plugin dependency resolution, check the log above for details.");
+        }
+        final List<CompatibilityTransformerPluginMetadata> sorted = sortedMetadata.get();
+        loadedPluginMetadata.clear();
+        loadedPluginMetadata.addAll(sorted);
+        loadedPluginMetadataById.clear();
+        for (CompatibilityTransformerPluginMetadata pluginMeta : sorted) {
+            loadedPluginMetadataById.put(pluginMeta.id(), pluginMeta);
+            for (CompatibilityTransformerPluginMetadata.IdAndVersion extraId : pluginMeta.additionalVersions()) {
+                loadedPluginMetadataById.put(extraId.id(), pluginMeta);
+            }
+        }
+        for (CompatibilityTransformerPluginMetadata pluginMeta : sorted) {
+            final String className = pluginMeta.className();
+            try {
+                final Class<?> klass = Class.forName(className, true, Main.compatLoader);
+                if (!CompatibilityTransformerPlugin.class.isAssignableFrom(klass)) {
+                    throw new RuntimeException("Plugin class " + className
+                            + " does not implement the required CompatibilityTransformerPlugin interface, source: "
+                            + pluginMeta.source());
+                }
+
+                final CompatibilityTransformerPlugin plugin =
+                        (CompatibilityTransformerPlugin) klass.getConstructor().newInstance();
+                Main.logger.info(
+                        "Constructed RFB plugin {} ({}): {} ({})",
+                        pluginMeta.idAndVersion(),
+                        pluginMeta.name(),
+                        className,
+                        pluginMeta.source());
+                loadedPlugins.add(plugin);
+                loadedPluginsById.put(pluginMeta.id(), plugin);
+                for (CompatibilityTransformerPluginMetadata.IdAndVersion extraId : pluginMeta.additionalVersions()) {
+                    loadedPluginsById.put(extraId.id(), plugin);
+                }
+            } catch (ReflectiveOperationException e) {
+                Throwable cause = e;
+                if (e instanceof InvocationTargetException) {
+                    cause = e.getCause();
+                }
+                throw new RuntimeException(
+                        "Error constructing plugin " + className + ", source: " + pluginMeta.source(), cause);
+            }
         }
 
         closeJarFilesystems();
+    }
+
+    private static final URI myURI;
+
+    static {
+        try {
+            myURI = Objects.requireNonNull(PluginLoader.class.getResource("PluginLoader.class"))
+                    .toURI();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static CompatibilityTransformerPluginMetadata makeJavaMetadata() {
+        return new CompatibilityTransformerPluginMetadata(
+                myURI,
+                "java",
+                "Java",
+                new DefaultArtifactVersion(Main.JAVA_VERSION),
+                new CompatibilityTransformerPluginMetadata.IdAndVersion[0],
+                "com.gtnewhorizons.rfbplugins.compat.DummyJavaPlugin",
+                new CompatibilityTransformerPluginMetadata.IdAndVersionRange[0],
+                new String[0],
+                new String[0],
+                new String[0],
+                new String[0],
+                false);
+    }
+
+    private static CompatibilityTransformerPluginMetadata makeRfbMetadata() {
+        return new CompatibilityTransformerPluginMetadata(
+                myURI,
+                "rfb",
+                "RetroFuturaBootstrap",
+                new DefaultArtifactVersion(BuildConfig.VERSION),
+                new CompatibilityTransformerPluginMetadata.IdAndVersion[0],
+                "com.gtnewhorizons.rfbplugins.compat.DummyRfbPlugin",
+                new CompatibilityTransformerPluginMetadata.IdAndVersionRange[0],
+                new String[0],
+                new String[0],
+                new String[0],
+                new String[0],
+                false);
     }
 
     private static List<Path> findPluginManifests() {
@@ -112,7 +217,6 @@ public final class PluginLoader {
                     continue;
                 }
                 final Path pluginsDir = root.resolve(META_INF).resolve(RFB_PLUGINS_DIR);
-                Main.logger.info("{}", pluginsDir);
                 if (!Files.isDirectory(pluginsDir)) {
                     continue;
                 }
@@ -125,7 +229,6 @@ public final class PluginLoader {
                             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                                 Objects.requireNonNull(file);
                                 Objects.requireNonNull(attrs);
-                                Main.logger.info("--> {}", file);
                                 if (file.getFileName()
                                         .toString()
                                         .toLowerCase(Locale.ROOT)
