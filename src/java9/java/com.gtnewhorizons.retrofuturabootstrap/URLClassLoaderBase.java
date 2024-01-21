@@ -32,6 +32,10 @@ public class URLClassLoaderBase extends URLClassLoader {
         super(name, urls, parent, factory);
     }
 
+    public static int implementationVersion() {
+        return 9;
+    }
+
     public String getClassLoaderName() {
         return super.getName();
     }

@@ -41,6 +41,11 @@ public class URLClassLoaderBase extends URLClassLoader {
         this.name = name;
     }
 
+    /** Detects which classfile was loaded from the multi-release jar */
+    public static int implementationVersion() {
+        return 8;
+    }
+
     public String getClassLoaderName() {
         // return super.getName();
         return this.name;

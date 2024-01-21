@@ -132,6 +132,14 @@ public class Main {
                     "System classloader not overwritten, add -Djava.system.class.loader=com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader to your JVM flags");
         }
         Main.compatLoader = (RfbSystemClassLoader) ClassLoader.getSystemClassLoader();
+        if (JAVA_MAJOR_VERSION > 8 && URLClassLoaderBase.implementationVersion() == 8) {
+            throw new IllegalStateException(
+                    "Java newer than 8 is used, while the URLClassLoaderBase for Java 8 was loaded by "
+                            + URLClassLoaderBase.class
+                                    .getClassLoader()
+                                    .getClass()
+                                    .getName());
+        }
         try {
             Class<?> launchClass = Class.forName("net.minecraft.launchwrapper.Launch", true, compatLoader);
             Method main = launchClass.getMethod("main", String[].class);

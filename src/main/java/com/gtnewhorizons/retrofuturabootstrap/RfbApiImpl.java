@@ -32,5 +32,4 @@ public final class RfbApiImpl implements RfbApi {
     public String javaVersion() {
         return Main.JAVA_VERSION;
     }
-
 }

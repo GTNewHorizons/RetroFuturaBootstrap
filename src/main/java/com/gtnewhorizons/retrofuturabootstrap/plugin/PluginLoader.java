@@ -10,7 +10,6 @@ import com.gtnewhorizons.retrofuturabootstrap.api.RfbPlugin;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.versioning.DefaultArtifactVersion;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,8 +21,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
-import java.nio.file.FileSystemAlreadyExistsException;
-import java.nio.file.FileSystems;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -351,7 +348,7 @@ public final class PluginLoader {
                 }
                 if (isJar) {
                     try (final ZipFile zip = new ZipFile(root.toFile(), ZipFile.OPEN_READ, StandardCharsets.UTF_8)) {
-                        for (final Enumeration<? extends ZipEntry> enm = zip.entries(); enm.hasMoreElements();) {
+                        for (final Enumeration<? extends ZipEntry> enm = zip.entries(); enm.hasMoreElements(); ) {
                             final ZipEntry ze = enm.nextElement();
                             if (ze.isDirectory() || !ze.getName().startsWith(zipPrefix)) {
                                 continue;
@@ -362,8 +359,8 @@ public final class PluginLoader {
                                 continue;
                             }
                             try (final InputStream is = zip.getInputStream(ze);
-                                final Reader rdr = new InputStreamReader(is, StandardCharsets.UTF_8);
-                                final BufferedReader bufReader = new BufferedReader(rdr)) {
+                                    final Reader rdr = new InputStreamReader(is, StandardCharsets.UTF_8);
+                                    final BufferedReader bufReader = new BufferedReader(rdr)) {
                                 pluginMetadata.add(parseMetadata(uri, filename, bufReader));
                             } catch (Exception e) {
                                 Main.logger.error("Skipping invalid plugin manifest {}", uri, e);
@@ -378,25 +375,33 @@ public final class PluginLoader {
                         continue;
                     }
                     Files.walkFileTree(
-                        pluginsDir,
-                        new HashSet<>(Collections.singletonList(FileVisitOption.FOLLOW_LINKS)),
-                        1,
-                        new SimpleFileVisitor<Path>() {
+                            pluginsDir,
+                            new HashSet<>(Collections.singletonList(FileVisitOption.FOLLOW_LINKS)),
+                            1,
+                            new SimpleFileVisitor<Path>() {
 
-                            @Override
-                            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                                Objects.requireNonNull(file);
-                                Objects.requireNonNull(attrs);
-                                if (file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".properties")) {
-                                    try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-                                        pluginMetadata.add(parseMetadata(file.toUri(), file.getFileName().toString(), reader));
-                                    } catch (Exception e) {
-                                        Main.logger.error("Skipping invalid plugin manifest {}", file, e);
+                                @Override
+                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                                        throws IOException {
+                                    Objects.requireNonNull(file);
+                                    Objects.requireNonNull(attrs);
+                                    if (file.getFileName()
+                                            .toString()
+                                            .toLowerCase(Locale.ROOT)
+                                            .endsWith(".properties")) {
+                                        try (BufferedReader reader =
+                                                Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                                            pluginMetadata.add(parseMetadata(
+                                                    file.toUri(),
+                                                    file.getFileName().toString(),
+                                                    reader));
+                                        } catch (Exception e) {
+                                            Main.logger.error("Skipping invalid plugin manifest {}", file, e);
+                                        }
                                     }
+                                    return FileVisitResult.CONTINUE;
                                 }
-                                return FileVisitResult.CONTINUE;
-                            }
-                        });
+                            });
                 }
             } catch (Exception e) {
                 Main.logger.warn("Could not scan path for RFB plugins: {}", uriToSearch, e);
@@ -407,7 +412,8 @@ public final class PluginLoader {
         return pluginMetadata;
     }
 
-    private static RfbPluginMetadata parseMetadata(URI source, String filename, BufferedReader contents) throws IOException {
+    private static RfbPluginMetadata parseMetadata(URI source, String filename, BufferedReader contents)
+            throws IOException {
         final int dot = filename.lastIndexOf('.');
         final String id = filename.substring(0, dot);
         final Properties props = new Properties();

@@ -15,8 +15,6 @@ public class ModernJavaCompatibilityPlugin implements RfbPlugin {
             // Not needed for Java 8.
             return null;
         }
-        return new RfbClassTransformer[] {
-
-        };
+        return new RfbClassTransformer[] {};
     }
 }
