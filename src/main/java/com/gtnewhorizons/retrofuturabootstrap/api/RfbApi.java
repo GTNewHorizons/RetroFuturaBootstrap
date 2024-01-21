@@ -1,6 +1,6 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
-import com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader;
+import com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,14 +15,14 @@ public interface RfbApi {
     ClassLoader platformClassLoader();
 
     /**
-     * @return The System class loader, used for loading RFB itself and compatibility transformers.
+     * @return The original JVM System class loader, used for loading RFB itself.
      */
     @NotNull
-    ClassLoader systemClassLoader();
+    ClassLoader originalSystemClassLoader();
 
     /**
-     * @return The {@link com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader} responsible for loading coremod and mod loader classes.
+     * @return The {@link RfbSystemClassLoader} responsible for loading coremod and mod loader classes.
      */
     @NotNull
-    SimpleTransformingClassLoader compatClassLoader();
+    RfbSystemClassLoader compatClassLoader();
 }

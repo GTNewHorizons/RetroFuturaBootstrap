@@ -8,16 +8,16 @@ import java.util.Map;
  * The collections returned are mutable to avoid ugly reflection hacks when needed, but try to avoid mutating them unless absolutely necessary.
  */
 public final class PluginContext {
-    private final List<CompatibilityTransformerPluginMetadata> pluginMetadata;
-    private final List<CompatibilityTransformerPluginHandle> loadedPlugins;
-    private final Map<String, CompatibilityTransformerPluginMetadata> pluginMetadataById;
-    private final Map<String, CompatibilityTransformerPluginHandle> loadedPluginsById;
+    private final List<RfbPluginMetadata> pluginMetadata;
+    private final List<RfbPluginHandle> loadedPlugins;
+    private final Map<String, RfbPluginMetadata> pluginMetadataById;
+    private final Map<String, RfbPluginHandle> loadedPluginsById;
 
     public PluginContext(
-            List<CompatibilityTransformerPluginMetadata> pluginMetadata,
-            List<CompatibilityTransformerPluginHandle> loadedPlugins,
-            Map<String, CompatibilityTransformerPluginMetadata> pluginMetadataById,
-            Map<String, CompatibilityTransformerPluginHandle> loadedPluginsById) {
+            List<RfbPluginMetadata> pluginMetadata,
+            List<RfbPluginHandle> loadedPlugins,
+            Map<String, RfbPluginMetadata> pluginMetadataById,
+            Map<String, RfbPluginHandle> loadedPluginsById) {
         this.pluginMetadata = pluginMetadata;
         this.loadedPlugins = loadedPlugins;
         this.pluginMetadataById = pluginMetadataById;
@@ -27,28 +27,28 @@ public final class PluginContext {
     /**
      * @return Metadata of all plugins that are and will be loaded, full list immediately available.
      */
-    public List<CompatibilityTransformerPluginMetadata> pluginMetadata() {
+    public List<RfbPluginMetadata> pluginMetadata() {
         return pluginMetadata;
     }
 
     /**
      * @return Plugin classes of the plugins loaded so far during the loading process.
      */
-    public List<CompatibilityTransformerPluginHandle> loadedPlugins() {
+    public List<RfbPluginHandle> loadedPlugins() {
         return loadedPlugins;
     }
 
     /**
      * @return ID-indexed lookup table for plugin metadata.
      */
-    public Map<String, CompatibilityTransformerPluginMetadata> pluginMetadataById() {
+    public Map<String, RfbPluginMetadata> pluginMetadataById() {
         return pluginMetadataById;
     }
 
     /**
      * @return ID-indexed lookup table for plugin classes.
      */
-    public Map<String, CompatibilityTransformerPluginHandle> loadedPluginsById() {
+    public Map<String, RfbPluginHandle> loadedPluginsById() {
         return loadedPluginsById;
     }
 }

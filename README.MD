@@ -11,8 +11,8 @@ If there is a good use case, I'm open to lowering the Java requirement further.
 RetroFuturaBootstrap supports early loading plugins to transform mod loader classes, or even other plugin classes, for the purpose of maintaining compatibility patches for code that is difficult to modify otherwise.
 For example, patching bugs or new Java version support into the Forge Mod Loader, redirecting graphics API usage to an emulation layer or bugfixes for Forge "coremods".
 You can add compatibility plugins into your jar by following these steps:
- - Implement the `com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPlugin` interface on your plugin class
- - Define `com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer`s and add metadata about the transformer order and exclusions to your main plugin class
+ - Implement the `com.gtnewhorizons.retrofuturabootstrap.api.RfbPlugin` interface on your plugin class
+ - Define `com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer`s and add metadata about the transformer order and exclusions to your plugin classes
  - Pick a unique plugin ID you're very unlikely to change, made up of lower-case letters, digits and dashes for consistency (`[a-z0-9-]+`).
  - Add a UTF-8 properties file declaring information about your plugin to `META-INF/rfb-plugin/my-plugin-id.properties` in your jar (or runtime classpath in a development environments):
 ```properties
@@ -25,7 +25,7 @@ version=0.0.1-alpha.1
 # Alternative plugin IDs and versions that this plugin provides, e.g. generic names like "mixin" or the ID of a previous version.
 # If versions conflicting with other plugins are found, the newest version is used and the other plugins won't load with a warning. Use versionConstraints to mark any incompatibilities.
 additionalVersions=mixin@0.8.5; my-old-id@0.0.10
-# The class implementing com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPlugin (required)
+# The class implementing com.gtnewhorizons.retrofuturabootstrap.api.RfbPlugin (required)
 className=io.github.mymod.rfb.RfbPlugin
 # Additional packages on top of the plugin's parent package to exclude from self-transformation by the plugin
 transformerExclusions=io.github.mymod.util; io.github.mymod.common

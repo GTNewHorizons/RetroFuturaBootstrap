@@ -1,7 +1,7 @@
 package com.gtnewhorizons.retrofuturabootstrap;
 
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
-import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformerHandle;
+import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformerHandle;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -27,13 +27,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class Main {
-    /** The compatibility ClassLoader that's a parent of LaunchClassLoader. */
-    public @Nullable static SimpleTransformingClassLoader compatLoader;
+    /** The RFB ClassLoader that's a parent of LaunchClassLoader. */
+    public @Nullable static RfbSystemClassLoader compatLoader;
     /** The LaunchClassLoader handle, can't use the type directly because it's loaded in a different classloader. */
     public @Nullable static ExtensibleClassLoader launchLoader;
-    /** An ArrayList of all compatibility class transformers used, mutable, in order of application */
-    private static final @NotNull AtomicReference<@NotNull SimpleClassTransformerHandle[]> compatibilityTransformers =
-            new AtomicReference<>(new SimpleClassTransformerHandle[0]);
+    /** An ArrayList of all RFB class transformers used, mutable, in order of application */
+    private static final @NotNull AtomicReference<@NotNull RfbClassTransformerHandle[]> rfbTransformers =
+            new AtomicReference<>(new RfbClassTransformerHandle[0]);
     /** The ClassLoader that loaded this class. */
     public static final @NotNull ClassLoader appClassLoader = Main.class.getClassLoader();
 
@@ -66,8 +66,6 @@ public class Main {
             getBooleanOr("rfb.dumpLoadedClassesPerTransformer", false)
                     || Boolean.parseBoolean(System.getProperty("legacy.debugClassLoadingSave", "false"));
 
-    /** Controlled by system property {@code rfb.registerURLStreamHandler=true}, if the compatibility URLStreamHandler should be registered (there can only be one per JVM) */
-    public static final boolean cfgRegisterURLStreamHandler = getBooleanOr("rfb.registerURLStreamHandler", true);
     /** Controlled by system property {@code rfb.dumpClassesAsynchronously=true}, if the class dumps are done from another Thread to avoid slow IO */
     public static final boolean cfgDumpClassesAsynchronously = getBooleanOr("rfb.dumpClassesAsynchronously", true);
 
@@ -101,39 +99,39 @@ public class Main {
 
     /** A utility to convert the java.class.path system property to an array of URLs */
     public static @NotNull URL @NotNull [] getUrlClasspathEntries() {
-        return SimpleTransformingClassLoader.getUrlClasspathEntries(appClassLoader);
+        return RfbSystemClassLoader.getUrlClasspathEntries(appClassLoader);
     }
 
     /**
-     * @return An immutable view on compatibility transformers.
+     * @return An immutable view on RFB transformers.
      */
-    public static @NotNull List<@NotNull SimpleClassTransformerHandle> getCompatibilityTransformers() {
-        return Collections.unmodifiableList(Arrays.asList(compatibilityTransformers.get()));
+    public static @NotNull List<@NotNull RfbClassTransformerHandle> getRfbTransformers() {
+        return Collections.unmodifiableList(Arrays.asList(rfbTransformers.get()));
     }
 
     /**
-     * Updates the compatibility transformers list using the given function, mutator might be called multiple times if there's multiple threads racing to modify the list.
-     * @param mutator A function that modifies a mutable List of compatibility transformers.
+     * Updates the RFB transformers list using the given function, mutator might be called multiple times if there's multiple threads racing to modify the list.
+     * @param mutator A function that modifies a mutable List of RFB transformers.
      */
-    public static void mutateCompatibilityTransformers(
-            @NotNull Consumer<@NotNull List<@NotNull SimpleClassTransformerHandle>> mutator) {
+    public static void mutateRfbTransformers(
+            @NotNull Consumer<@NotNull List<@NotNull RfbClassTransformerHandle>> mutator) {
         while (true) {
-            final SimpleClassTransformerHandle[] original = compatibilityTransformers.get();
-            final ArrayList<SimpleClassTransformerHandle> mutable = new ArrayList<>(Arrays.asList(original));
+            final RfbClassTransformerHandle[] original = rfbTransformers.get();
+            final ArrayList<RfbClassTransformerHandle> mutable = new ArrayList<>(Arrays.asList(original));
             mutator.accept(mutable);
-            final SimpleClassTransformerHandle[] modified = mutable.toArray(new SimpleClassTransformerHandle[0]);
-            if (compatibilityTransformers.compareAndSet(original, modified)) {
+            final RfbClassTransformerHandle[] modified = mutable.toArray(new RfbClassTransformerHandle[0]);
+            if (rfbTransformers.compareAndSet(original, modified)) {
                 break;
             }
         }
     }
 
     public static void main(String[] args) throws Throwable {
-        if (!(ClassLoader.getSystemClassLoader() instanceof SimpleTransformingClassLoader)) {
+        if (!(ClassLoader.getSystemClassLoader() instanceof RfbSystemClassLoader)) {
             throw new IllegalStateException(
-                    "System classloader not overwritten, add -Djava.system.class.loader=com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader to your JVM flags");
+                    "System classloader not overwritten, add -Djava.system.class.loader=com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader to your JVM flags");
         }
-        Main.compatLoader = (SimpleTransformingClassLoader) ClassLoader.getSystemClassLoader();
+        Main.compatLoader = (RfbSystemClassLoader) ClassLoader.getSystemClassLoader();
         try {
             Class<?> launchClass = Class.forName("net.minecraft.launchwrapper.Launch", true, compatLoader);
             Method main = launchClass.getMethod("main", String[].class);

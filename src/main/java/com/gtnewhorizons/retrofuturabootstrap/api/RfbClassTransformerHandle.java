@@ -8,27 +8,27 @@ import java.util.TreeSet;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A handle to a {@link SimpleClassTransformer} with metadata about class exclusions and the associated plugin.
+ * A handle to a {@link RfbClassTransformer} with metadata about class exclusions and the associated plugin.
  */
-public final class SimpleClassTransformerHandle {
+public final class RfbClassTransformerHandle {
     private final @NotNull String id;
-    private final @NotNull CompatibilityTransformerPluginMetadata pluginMetadata;
-    private final @NotNull CompatibilityTransformerPlugin plugin;
-    private final @NotNull SimpleClassTransformer transformer;
+    private final @NotNull RfbPluginMetadata pluginMetadata;
+    private final @NotNull RfbPlugin plugin;
+    private final @NotNull RfbClassTransformer transformer;
     private final @NotNull List<@NotNull String> exclusions;
 
     /**
      * Creates the transformer handle and calculates the exclusion set for the given transformer.
      */
-    public SimpleClassTransformerHandle(
-            @NotNull CompatibilityTransformerPluginMetadata pluginMetadata,
-            @NotNull CompatibilityTransformerPlugin plugin,
-            @NotNull SimpleClassTransformer transformer) {
+    public RfbClassTransformerHandle(
+            @NotNull RfbPluginMetadata pluginMetadata,
+            @NotNull RfbPlugin plugin,
+            @NotNull RfbClassTransformer transformer) {
         this.pluginMetadata = pluginMetadata;
         this.plugin = plugin;
         this.transformer = transformer;
         final String xId = transformer.id();
-        if (!CompatibilityTransformerPluginMetadata.ID_VALIDATOR.matcher(xId).matches()) {
+        if (!RfbPluginMetadata.ID_VALIDATOR.matcher(xId).matches()) {
             throw new RuntimeException("Illegal transfomer ID " + xId + " in RFB plugin " + pluginMetadata.id());
         }
         this.id = pluginMetadata().id() + ":" + transformer.id();
@@ -68,21 +68,21 @@ public final class SimpleClassTransformerHandle {
     /**
      * @return Metadata of the plugin that registered this transformer.
      */
-    public @NotNull CompatibilityTransformerPluginMetadata pluginMetadata() {
+    public @NotNull RfbPluginMetadata pluginMetadata() {
         return pluginMetadata;
     }
 
     /**
      * @return Plugin that registered this transformer.
      */
-    public @NotNull CompatibilityTransformerPlugin plugin() {
+    public @NotNull RfbPlugin plugin() {
         return plugin;
     }
 
     /**
      * @return The transformer itself.
      */
-    public @NotNull SimpleClassTransformer transformer() {
+    public @NotNull RfbClassTransformer transformer() {
         return transformer;
     }
 

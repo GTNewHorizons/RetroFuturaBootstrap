@@ -10,7 +10,7 @@ import org.jetbrains.annotations.Nullable;
  * The runtime classpath is scanned, in addition to files with the .jar extension in the mods folder in the game directory.
  * The plugin class implementing this interface must have a public no-arguments constructor.
  */
-public interface CompatibilityTransformerPlugin {
+public interface RfbPlugin {
 
     /**
      * Called immediately after constructing the plugin using a public no-argument constructor and adding it to the loaded plugins lists.
@@ -24,17 +24,17 @@ public interface CompatibilityTransformerPlugin {
      *
      * @return Array of non-null transformers to register, or null if none are needed.
      */
-    default @NotNull SimpleClassTransformer @Nullable [] makeEarlyTransformers() {
+    default @NotNull RfbClassTransformer @Nullable [] makeEarlyTransformers() {
         return null;
     }
 
     /**
-     * Called after all plugins are constructed to gather compatibility transformers to register in bulk.
+     * Called after all plugins are constructed to gather RFB transformers to register in bulk.
      * Make sure to implement the sortAfter/sortBefore methods if you want to ensure a specific ordering of your transformer.
      *
      * @return Array of non-null transformers to register, or null if none are needed.
      */
-    default @NotNull SimpleClassTransformer @Nullable [] makeTransformers() {
+    default @NotNull RfbClassTransformer @Nullable [] makeTransformers() {
         return null;
     }
 }

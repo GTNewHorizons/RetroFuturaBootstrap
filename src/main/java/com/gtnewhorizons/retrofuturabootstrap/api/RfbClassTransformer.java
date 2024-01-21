@@ -8,7 +8,7 @@ import org.jetbrains.annotations.Nullable;
  * A simple transformer that takes in class bytes and outputs different class bytes.
  * It should be thread-safe, and not change class names. It should also have a public no-arguments constructor.
  */
-public interface SimpleClassTransformer {
+public interface RfbClassTransformer {
     /** Context, in which the class is being loaded. */
     enum Context {
         /** The class would be loaded by the system ClassLoader in launchwrapper */

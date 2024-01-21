@@ -1,7 +1,7 @@
 package com.gtnewhorizons.retrofuturabootstrap;
 
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
-import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
+import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -27,9 +27,9 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * A simpler, non-renaming version of {@link net.minecraft.launchwrapper.LaunchClassLoader} used for loading all coremod classes.
- * Allows for "compatibility transformers" to run just before class loading happens on all modded classes, including coremods.
+ * Allows for RFB class transformers to run just before class definition happens on all modded classes, including coremods.
  */
-public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtilities implements ExtensibleClassLoader {
+public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities implements ExtensibleClassLoader {
 
     static {
         ClassLoader.registerAsParallelCapable();
@@ -62,7 +62,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
     /**
      * @param sources The initial classpath
      */
-    public SimpleTransformingClassLoader(String name, URL[] sources) {
+    public RfbSystemClassLoader(String name, URL[] sources) {
         super(name, sources, getPlatformClassLoader());
         classLoaderExceptions.addAll(Arrays.asList(
                 "java.",
@@ -75,7 +75,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
     }
 
     /** Invoked by Java itself */
-    public SimpleTransformingClassLoader(ClassLoader parent) {
+    public RfbSystemClassLoader(ClassLoader parent) {
         this("RFB-System", getUrlClasspathEntries(parent));
         Thread.currentThread().setContextClassLoader(this);
     }
@@ -191,8 +191,8 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
             if (Main.cfgDumpLoadedClassesPerTransformer && classBytes != null) {
                 Main.dumpClass(this.getClassLoaderName(), name + "_000_pretransform", classBytes);
             }
-            classBytes = runCompatibilityTransformers(
-                    Main.getCompatibilityTransformers(), SimpleClassTransformer.Context.SYSTEM, name, classBytes);
+            classBytes =
+                    runRfbTransformers(Main.getRfbTransformers(), RfbClassTransformer.Context.SYSTEM, name, classBytes);
         } catch (Throwable t) {
             ClassNotFoundException err =
                     new ClassNotFoundException("Exception caught while transforming class " + name, t);

@@ -14,12 +14,12 @@ public final class RfbApiImpl implements RfbApi {
     }
 
     @Override
-    public @NotNull ClassLoader systemClassLoader() {
-        return ClassLoader.getSystemClassLoader();
+    public @NotNull ClassLoader originalSystemClassLoader() {
+        return RfbSystemClassLoader.class.getClassLoader();
     }
 
     @Override
-    public @NotNull SimpleTransformingClassLoader compatClassLoader() {
+    public @NotNull RfbSystemClassLoader compatClassLoader() {
         return Main.compatLoader;
     }
 }

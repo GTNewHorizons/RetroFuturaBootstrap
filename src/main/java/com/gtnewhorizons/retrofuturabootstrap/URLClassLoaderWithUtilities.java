@@ -2,8 +2,8 @@ package com.gtnewhorizons.retrofuturabootstrap;
 
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
-import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
-import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformerHandle;
+import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
+import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformerHandle;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
 import java.util.Collection;
@@ -32,25 +32,25 @@ public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
         super(name, urls, parent, factory);
     }
 
-    public byte[] runCompatibilityTransformers(
-            final Collection<SimpleClassTransformerHandle> compatibilityTransformers,
-            final SimpleClassTransformer.Context context,
+    public byte[] runRfbTransformers(
+            final Collection<RfbClassTransformerHandle> rfbTransformers,
+            final RfbClassTransformer.Context context,
             final String className,
             byte[] basicClass) {
-        if (compatibilityTransformers.isEmpty()) {
+        if (rfbTransformers.isEmpty()) {
             return basicClass;
         }
         final ExtensibleClassLoader self = (ExtensibleClassLoader) this;
         int xformerIndex = 0;
         final ClassNodeHandle nodeHandle = new ClassNodeHandle(basicClass);
         xformerLoop:
-        for (SimpleClassTransformerHandle handle : compatibilityTransformers) {
+        for (RfbClassTransformerHandle handle : rfbTransformers) {
             for (final String exclusion : handle.exclusions()) {
                 if (className.startsWith(exclusion)) {
                     continue xformerLoop;
                 }
             }
-            final SimpleClassTransformer xformer = handle.transformer();
+            final RfbClassTransformer xformer = handle.transformer();
             try {
                 if (xformer.shouldTransformClass(self, context, className, basicClass)) {
                     xformer.transformClass(self, context, className, nodeHandle);

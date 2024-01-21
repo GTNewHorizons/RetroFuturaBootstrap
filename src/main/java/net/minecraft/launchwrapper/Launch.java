@@ -1,7 +1,7 @@
 package net.minecraft.launchwrapper;
 
 import com.gtnewhorizons.retrofuturabootstrap.Main;
-import com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader;
+import com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.plugin.PluginLoader;
 import java.io.File;
@@ -86,8 +86,8 @@ public class Launch {
                 (ExtensibleClassLoader) getClass().getClassLoader();
         final LaunchClassLoader lcl =
                 new LaunchClassLoader(parentLoader.asURLClassLoader().getURLs());
-        if (parentLoader instanceof SimpleTransformingClassLoader) {
-            ((SimpleTransformingClassLoader) parentLoader).setChildLoader(lcl);
+        if (parentLoader instanceof RfbSystemClassLoader) {
+            ((RfbSystemClassLoader) parentLoader).setChildLoader(lcl);
         }
         classLoader = lcl;
         Main.launchLoader = lcl;

@@ -15,15 +15,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.VisibleForTesting;
 
-public final class CompatibilityTransformerPluginMetadata
-        implements Comparable<CompatibilityTransformerPluginMetadata> {
+public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
 
     public static final Pattern ID_VALIDATOR = Pattern.compile("[a-z0-9-]+");
-    public static final Comparator<? super CompatibilityTransformerPluginMetadata> ID_COMPARATOR =
-            Comparator.nullsFirst(Comparator.comparing(CompatibilityTransformerPluginMetadata::id));
-    public static final Comparator<? super CompatibilityTransformerPluginMetadata> ID_AND_PIN_COMPARATOR =
-            Comparator.nullsFirst(Comparator.comparing(CompatibilityTransformerPluginMetadata::pinLast)
-                    .thenComparing(CompatibilityTransformerPluginMetadata::id));
+    public static final Comparator<? super RfbPluginMetadata> ID_COMPARATOR =
+            Comparator.nullsFirst(Comparator.comparing(RfbPluginMetadata::id));
+    public static final Comparator<? super RfbPluginMetadata> ID_AND_PIN_COMPARATOR = Comparator.nullsFirst(
+            Comparator.comparing(RfbPluginMetadata::pinLast).thenComparing(RfbPluginMetadata::id));
 
     private final @NotNull URI source;
     private final @NotNull IdAndVersion idAndVersion;
@@ -36,9 +34,9 @@ public final class CompatibilityTransformerPluginMetadata
     private final @NotNull String[] loadRequires;
     private final boolean pinLast;
     private final @NotNull String className;
-    private @Nullable CompatibilityTransformerPlugin instance;
+    private @Nullable RfbPlugin instance;
 
-    public CompatibilityTransformerPluginMetadata(
+    public RfbPluginMetadata(
             @NotNull URI source,
             @NotNull String id,
             @NotNull String name,
@@ -66,7 +64,7 @@ public final class CompatibilityTransformerPluginMetadata
         this.pinLast = pinLast;
     }
 
-    public CompatibilityTransformerPluginMetadata(@NotNull URI source, @NotNull String id, Properties props) {
+    public RfbPluginMetadata(@NotNull URI source, @NotNull String id, Properties props) {
         this.source = Objects.requireNonNull(source);
         Objects.requireNonNull(id);
 
@@ -222,11 +220,11 @@ public final class CompatibilityTransformerPluginMetadata
         return className;
     }
 
-    public CompatibilityTransformerPlugin instance() {
+    public RfbPlugin instance() {
         return instance;
     }
 
-    public void instance(CompatibilityTransformerPlugin value) {
+    public void instance(RfbPlugin value) {
         if (instance == null) {
             instance = value;
         } else {
@@ -263,7 +261,7 @@ public final class CompatibilityTransformerPluginMetadata
     public boolean equals(Object obj) {
         if (obj == this) return true;
         if (obj == null || obj.getClass() != this.getClass()) return false;
-        CompatibilityTransformerPluginMetadata that = (CompatibilityTransformerPluginMetadata) obj;
+        RfbPluginMetadata that = (RfbPluginMetadata) obj;
         return Objects.equals(this.name, that.name)
                 && Objects.equals(this.idAndVersion, that.idAndVersion)
                 && Arrays.equals(this.additionalVersions, that.additionalVersions)
@@ -292,7 +290,7 @@ public final class CompatibilityTransformerPluginMetadata
 
     @Override
     public String toString() {
-        return "CompatibilityTransformerPluginMetadata["
+        return "RfbPluginMetadata["
                 + "idAndVersion="
                 + idAndVersion
                 + ", "
@@ -323,7 +321,7 @@ public final class CompatibilityTransformerPluginMetadata
     }
 
     @Override
-    public int compareTo(@NotNull CompatibilityTransformerPluginMetadata o) {
+    public int compareTo(@NotNull RfbPluginMetadata o) {
         return ID_COMPARATOR.compare(this, o);
     }
 
@@ -496,8 +494,8 @@ public final class CompatibilityTransformerPluginMetadata
             return this;
         }
 
-        public CompatibilityTransformerPluginMetadata build() {
-            return new CompatibilityTransformerPluginMetadata(
+        public RfbPluginMetadata build() {
+            return new RfbPluginMetadata(
                     source,
                     id,
                     name,

@@ -1,10 +1,10 @@
 package net.minecraft.launchwrapper;
 
 import com.gtnewhorizons.retrofuturabootstrap.Main;
-import com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader;
+import com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.URLClassLoaderWithUtilities;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
-import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
+import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -35,9 +35,9 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     private List<URL> sources;
     /** A reference to the classloader that loaded this class */
     private ClassLoader parent = getClass().getClassLoader();
-    /** RFB: null or SimpleTransformingClassLoader reference to parent */
-    private final SimpleTransformingClassLoader parentRfb =
-            (parent instanceof SimpleTransformingClassLoader) ? ((SimpleTransformingClassLoader) parent) : null;
+    /** RFB: null or RfbSystemClassLoader reference to parent */
+    private final RfbSystemClassLoader parentRfb =
+            (parent instanceof RfbSystemClassLoader) ? ((RfbSystemClassLoader) parent) : null;
     /** RFB: Reference to the platform class loader that can load JRE/JDK classes */
     private static final ClassLoader platformLoader = getPlatformClassLoader();
 
@@ -291,11 +291,10 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             }
             if (doCompatTransforms) {
                 try {
-                    final SimpleClassTransformer.Context context = runTransformers
-                            ? SimpleClassTransformer.Context.LCL_WITH_TRANSFORMS
-                            : SimpleClassTransformer.Context.LCL_NO_TRANSFORMS;
-                    classBytes = runCompatibilityTransformers(
-                            Main.getCompatibilityTransformers(), context, transformedName, classBytes);
+                    final RfbClassTransformer.Context context = runTransformers
+                            ? RfbClassTransformer.Context.LCL_WITH_TRANSFORMS
+                            : RfbClassTransformer.Context.LCL_NO_TRANSFORMS;
+                    classBytes = runRfbTransformers(Main.getRfbTransformers(), context, transformedName, classBytes);
                 } catch (Throwable t) {
                     ClassNotFoundException err =
                             new ClassNotFoundException("Exception caught while transforming class " + name, t);

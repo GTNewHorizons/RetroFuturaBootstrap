@@ -2,7 +2,7 @@ package com.gtnewhorizons.retrofuturabootstrap.plugin;
 
 import com.gtnewhorizons.retrofuturabootstrap.Main;
 import com.gtnewhorizons.retrofuturabootstrap.algorithm.StableTopologicalSort;
-import com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPluginMetadata;
+import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.versioning.ArtifactVersion;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,20 +16,19 @@ import java.util.Set;
 import org.jetbrains.annotations.VisibleForTesting;
 
 public class PluginSorter {
-    protected final List<CompatibilityTransformerPluginMetadata> plugins = new ArrayList<>();
-    protected final Set<CompatibilityTransformerPluginMetadata> duplicateDisables =
-            Collections.newSetFromMap(new IdentityHashMap<>());
+    protected final List<RfbPluginMetadata> plugins = new ArrayList<>();
+    protected final Set<RfbPluginMetadata> duplicateDisables = Collections.newSetFromMap(new IdentityHashMap<>());
     protected boolean criticalIssuesFound = false;
 
-    public PluginSorter(List<CompatibilityTransformerPluginMetadata> metadata) {
+    public PluginSorter(List<RfbPluginMetadata> metadata) {
         this.plugins.addAll(metadata);
-        this.plugins.sort(CompatibilityTransformerPluginMetadata.ID_AND_PIN_COMPARATOR);
+        this.plugins.sort(RfbPluginMetadata.ID_AND_PIN_COMPARATOR);
     }
 
     /**
      * @return The still-enabled plugin metadata in load order, or empty option if there were unresolved conflicts.
      */
-    public Optional<List<CompatibilityTransformerPluginMetadata>> resolve() {
+    public Optional<List<RfbPluginMetadata>> resolve() {
         handleDuplicates();
         handleLoadRelations();
         return criticalIssuesFound ? Optional.empty() : Optional.of(plugins);
@@ -40,25 +39,25 @@ public class PluginSorter {
      */
     @VisibleForTesting
     public void handleDuplicates() {
-        final Map<String, List<CompatibilityTransformerPluginMetadata>> idLookup = new HashMap<>(plugins.size());
+        final Map<String, List<RfbPluginMetadata>> idLookup = new HashMap<>(plugins.size());
         // build lookup map
-        for (CompatibilityTransformerPluginMetadata plugin : plugins) {
+        for (RfbPluginMetadata plugin : plugins) {
             idLookup.computeIfAbsent(plugin.id(), _id -> new ArrayList<>(1)).add(plugin);
-            for (CompatibilityTransformerPluginMetadata.IdAndVersion additionalId : plugin.additionalVersions()) {
+            for (RfbPluginMetadata.IdAndVersion additionalId : plugin.additionalVersions()) {
                 idLookup.computeIfAbsent(additionalId.id(), _id -> new ArrayList<>(2))
                         .add(plugin);
             }
         }
         // find and disable duplicates
-        for (Map.Entry<String, List<CompatibilityTransformerPluginMetadata>> entry : idLookup.entrySet()) {
+        for (Map.Entry<String, List<RfbPluginMetadata>> entry : idLookup.entrySet()) {
             final String id = entry.getKey();
-            final List<CompatibilityTransformerPluginMetadata> equalIdPlugins = entry.getValue();
+            final List<RfbPluginMetadata> equalIdPlugins = entry.getValue();
             if (equalIdPlugins.size() < 2) {
                 continue;
             }
-            CompatibilityTransformerPluginMetadata newest = null;
+            RfbPluginMetadata newest = null;
             ArtifactVersion newestVersion = null;
-            for (final CompatibilityTransformerPluginMetadata it : equalIdPlugins) {
+            for (final RfbPluginMetadata it : equalIdPlugins) {
                 if (duplicateDisables.contains(it)) {
                     continue;
                 }
@@ -104,19 +103,18 @@ public class PluginSorter {
      */
     @VisibleForTesting
     public void handleLoadRelations() {
-        final Map<String, CompatibilityTransformerPluginMetadata> pluginsById = new HashMap<>(plugins.size());
+        final Map<String, RfbPluginMetadata> pluginsById = new HashMap<>(plugins.size());
         final Map<String, ArtifactVersion> versionsById = new HashMap<>(plugins.size());
-        final Map<CompatibilityTransformerPluginMetadata, Integer> pluginToIndex =
-                new IdentityHashMap<>(plugins.size());
+        final Map<RfbPluginMetadata, Integer> pluginToIndex = new IdentityHashMap<>(plugins.size());
         // build lookup maps
         for (int index = 0; index < plugins.size(); index++) {
-            final CompatibilityTransformerPluginMetadata plugin = plugins.get(index);
+            final RfbPluginMetadata plugin = plugins.get(index);
             pluginToIndex.put(plugin, index);
             if (pluginsById.put(plugin.id(), plugin) != null) {
                 throw new IllegalStateException("Plugins not deduplicated: " + plugin.id());
             }
             versionsById.put(plugin.id(), plugin.version());
-            for (CompatibilityTransformerPluginMetadata.IdAndVersion additionalId : plugin.additionalVersions()) {
+            for (RfbPluginMetadata.IdAndVersion additionalId : plugin.additionalVersions()) {
                 if (pluginsById.put(additionalId.id(), plugin) != null) {
                     throw new IllegalStateException("Plugins not deduplicated: " + additionalId.id());
                 }
@@ -124,14 +122,13 @@ public class PluginSorter {
             }
         }
         // check conflicts and requirements
-        for (CompatibilityTransformerPluginMetadata plugin : plugins) {
-            for (final CompatibilityTransformerPluginMetadata.IdAndVersionRange constraint :
-                    plugin.versionConstraints()) {
+        for (RfbPluginMetadata plugin : plugins) {
+            for (final RfbPluginMetadata.IdAndVersionRange constraint : plugin.versionConstraints()) {
                 final String constraintId = constraint.id();
                 final ArtifactVersion constraintLoadedVersion = versionsById.get(constraintId);
                 if (constraintLoadedVersion != null) {
                     if (!constraint.version().containsVersion(constraintLoadedVersion)) {
-                        final CompatibilityTransformerPluginMetadata constraintLoaded = pluginsById.get(constraintId);
+                        final RfbPluginMetadata constraintLoaded = pluginsById.get(constraintId);
                         Main.logger.error(
                                 "Version requirement not satisfied: `{}` ({}) requires `{}`, but version `{}` (`{}`: {}) was found",
                                 plugin.idAndVersion(),
@@ -144,10 +141,10 @@ public class PluginSorter {
                 }
             }
             for (final String required : plugin.loadRequires()) {
-                final CompatibilityTransformerPluginMetadata loaded = pluginsById.get(required);
+                final RfbPluginMetadata loaded = pluginsById.get(required);
                 if (loaded == null) {
                     String verReq = "any version";
-                    for (CompatibilityTransformerPluginMetadata.IdAndVersionRange r : plugin.versionConstraints()) {
+                    for (RfbPluginMetadata.IdAndVersionRange r : plugin.versionConstraints()) {
                         if (r.id().equals(required)) {
                             verReq = r.version().toString();
                         }
@@ -171,11 +168,11 @@ public class PluginSorter {
         for (int i = 0; i < plugins.size(); i++) {
             beforeEdges.add(new ArrayList<>());
         }
-        for (final CompatibilityTransformerPluginMetadata plugin : plugins) {
+        for (final RfbPluginMetadata plugin : plugins) {
             final int myIndex = pluginToIndex.get(plugin);
             // add "before" dependencies
             for (final String otherId : plugin.loadBefore()) {
-                final CompatibilityTransformerPluginMetadata other = pluginsById.get(otherId);
+                final RfbPluginMetadata other = pluginsById.get(otherId);
                 if (other != null) {
                     final int otherIndex = pluginToIndex.get(other);
                     beforeEdges.get(myIndex).add(otherIndex);
@@ -183,7 +180,7 @@ public class PluginSorter {
             }
             // add "after" dependencies
             for (final String otherId : plugin.loadAfter()) {
-                final CompatibilityTransformerPluginMetadata other = pluginsById.get(otherId);
+                final RfbPluginMetadata other = pluginsById.get(otherId);
                 if (other != null) {
                     final int otherIndex = pluginToIndex.get(other);
                     beforeEdges.get(otherIndex).add(myIndex);
@@ -192,15 +189,13 @@ public class PluginSorter {
         }
 
         try {
-            final List<CompatibilityTransformerPluginMetadata> sorted =
-                    StableTopologicalSort.sort(plugins, beforeEdges);
+            final List<RfbPluginMetadata> sorted = StableTopologicalSort.sort(plugins, beforeEdges);
             this.plugins.clear();
             this.plugins.addAll(sorted);
         } catch (StableTopologicalSort.CycleException err) {
-            final Set<CompatibilityTransformerPluginMetadata> cycle =
-                    err.cyclicElements(CompatibilityTransformerPluginMetadata.class);
+            final Set<RfbPluginMetadata> cycle = err.cyclicElements(RfbPluginMetadata.class);
             Main.logger.error("Cycle found among the following RFB plugins, aborting launch:");
-            for (final CompatibilityTransformerPluginMetadata plugin : cycle) {
+            for (final RfbPluginMetadata plugin : cycle) {
                 Main.logger.error("{} ({})", plugin.idAndVersion(), plugin.source());
             }
             criticalIssuesFound = true;
