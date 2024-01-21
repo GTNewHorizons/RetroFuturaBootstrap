@@ -30,6 +30,9 @@ public class StableTopologicalSort {
         if (edges.size() != data.size()) {
             throw new IllegalStateException("edges size != data size");
         }
+        if (data.isEmpty()) {
+            return new ArrayList<>(0);
+        }
 
         final int vertexCount = data.size();
         final int[] inDegree = new int[vertexCount];
