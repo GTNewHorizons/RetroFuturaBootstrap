@@ -134,6 +134,7 @@ val test8 =
 
       useJUnitPlatform()
       this.classpath = sourceSets.test.get().runtimeClasspath
+      this.testClassesDirs = sourceSets.test.get().output.classesDirs
       this.javaLauncher =
           javaToolchains.launcherFor {
             languageVersion = JavaLanguageVersion.of(8)
