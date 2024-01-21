@@ -69,7 +69,7 @@ public final class PluginLoader {
         pluginMetadata.add(makeJavaMetadata());
 
         final Optional<List<CompatibilityTransformerPluginMetadata>> sortedMetadata =
-                new ConflictResolver(pluginMetadata).resolve();
+                new PluginSorter(pluginMetadata).resolve();
         if (!sortedMetadata.isPresent()) {
             throw new RuntimeException(
                     "There was a critical error during RFB plugin dependency resolution, check the log above for details.");

@@ -15,13 +15,13 @@ import java.util.Optional;
 import java.util.Set;
 import org.jetbrains.annotations.VisibleForTesting;
 
-public class ConflictResolver {
+public class PluginSorter {
     protected final List<CompatibilityTransformerPluginMetadata> plugins = new ArrayList<>();
     protected final Set<CompatibilityTransformerPluginMetadata> duplicateDisables =
             Collections.newSetFromMap(new IdentityHashMap<>());
     protected boolean criticalIssuesFound = false;
 
-    public ConflictResolver(List<CompatibilityTransformerPluginMetadata> metadata) {
+    public PluginSorter(List<CompatibilityTransformerPluginMetadata> metadata) {
         this.plugins.addAll(metadata);
         this.plugins.sort(CompatibilityTransformerPluginMetadata.ID_AND_PIN_COMPARATOR);
     }
@@ -71,10 +71,12 @@ public class ConflictResolver {
                 if (itVersion.compareTo(newestVersion) > 0) {
                     duplicateDisables.add(newest);
                     Main.logger.warn(
-                            "Duplicate RFB plugin ID {} found, disabling {} ({}) in favor of {} ({})",
+                            "Duplicate RFB plugin ID `{}` found, disabling `{}@{}` ({}) in favor of `{}@{}` ({})",
                             id,
+                            newest.id(),
                             newestVersion,
                             newest.source(),
+                            it.id(),
                             itVersion,
                             it.source());
                     newest = it;
@@ -82,10 +84,12 @@ public class ConflictResolver {
                 } else {
                     duplicateDisables.add(it);
                     Main.logger.warn(
-                            "Duplicate RFB plugin ID {} found, disabling {} ({}) in favor of {} ({})",
+                            "Duplicate RFB plugin ID `{}` found, disabling `{}@{}` ({}) in favor of `{}@{}` ({})",
                             id,
+                            it.id(),
                             itVersion,
                             it.source(),
+                            newest.id(),
                             newestVersion,
                             newest.source());
                 }
@@ -129,7 +133,7 @@ public class ConflictResolver {
                     if (!constraint.version().containsVersion(constraintLoadedVersion)) {
                         final CompatibilityTransformerPluginMetadata constraintLoaded = pluginsById.get(constraintId);
                         Main.logger.error(
-                                "Version requirement not satisfied: {} ({}) requires {}, but version {} ({}: {}) was found",
+                                "Version requirement not satisfied: `{}` ({}) requires `{}`, but version `{}` (`{}`: {}) was found",
                                 plugin.idAndVersion(),
                                 plugin.source(),
                                 constraintLoadedVersion,
@@ -142,11 +146,18 @@ public class ConflictResolver {
             for (final String required : plugin.loadRequires()) {
                 final CompatibilityTransformerPluginMetadata loaded = pluginsById.get(required);
                 if (loaded == null) {
+                    String verReq = "any version";
+                    for (CompatibilityTransformerPluginMetadata.IdAndVersionRange r : plugin.versionConstraints()) {
+                        if (r.id().equals(required)) {
+                            verReq = r.version().toString();
+                        }
+                    }
                     Main.logger.error(
-                            "Requirement not met: {} ({}) requires {}, but it was not found, or was disabled due to an earlier conflict.",
+                            "Requirement not met: `{}` ({}) requires `{}@{}`, but it was not found among enabled plugins.",
                             plugin.idAndVersion(),
                             plugin.source(),
-                            required);
+                            required,
+                            verReq);
                     criticalIssuesFound = true;
                 }
             }

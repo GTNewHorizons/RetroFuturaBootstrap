@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.VisibleForTesting;
 
 public final class CompatibilityTransformerPluginMetadata
         implements Comparable<CompatibilityTransformerPluginMetadata> {
@@ -397,6 +398,118 @@ public final class CompatibilityTransformerPluginMetadata
         @Override
         public String toString() {
             return id + '@' + version;
+        }
+    }
+
+    @VisibleForTesting
+    public static class Builder {
+
+        @NotNull
+        final URI source;
+
+        @NotNull
+        final String id;
+
+        @NotNull
+        final String name;
+
+        @NotNull
+        final ArtifactVersion version;
+
+        IdAndVersion[] additionalVersions = new IdAndVersion[0];
+
+        @NotNull
+        final String className;
+
+        IdAndVersionRange[] versionConstraints = new IdAndVersionRange[0];
+        String[] transformerExclusions = new String[0];
+        String[] loadBefore = new String[0];
+        String[] loadAfter = new String[0];
+        String[] loadRequires = new String[0];
+        boolean pinLast;
+
+        public Builder(
+                @NotNull URI source,
+                @NotNull String id,
+                @NotNull String name,
+                @NotNull String version,
+                @NotNull String className) {
+            this.source = source;
+            this.id = id;
+            this.name = name;
+            this.version = new DefaultArtifactVersion(version);
+            this.className = className;
+        }
+
+        public Builder(
+                @NotNull URI source,
+                @NotNull String id,
+                @NotNull String name,
+                @NotNull String version,
+                @NotNull Class<?> klass) {
+            this(source, id, name, version, klass.getName());
+        }
+
+        private static <T> T[] append(final T[] array, final T element) {
+            final T[] more = Arrays.copyOf(array, array.length + 1);
+            more[array.length] = element;
+            return more;
+        }
+
+        public Builder additionalVersion(String id, String version) {
+            additionalVersions = append(additionalVersions, new IdAndVersion(id, new DefaultArtifactVersion(version)));
+            return this;
+        }
+
+        public Builder versionConstraint(String id, String versionConstraint) {
+            try {
+                versionConstraints = append(
+                        versionConstraints,
+                        new IdAndVersionRange(id, VersionRange.createFromVersionSpec(versionConstraint)));
+            } catch (InvalidVersionSpecificationException e) {
+                throw new RuntimeException(e);
+            }
+            return this;
+        }
+
+        public Builder transformerExclusion(String id) {
+            transformerExclusions = append(transformerExclusions, id);
+            return this;
+        }
+
+        public Builder loadBefore(String id) {
+            loadBefore = append(loadBefore, id);
+            return this;
+        }
+
+        public Builder loadAfter(String id) {
+            if (id.equals("*")) {
+                pinLast = true;
+            } else {
+                loadAfter = append(loadAfter, id);
+            }
+            return this;
+        }
+
+        public Builder loadRequires(String id) {
+            loadRequires = append(loadRequires, id);
+            return this;
+        }
+
+        public CompatibilityTransformerPluginMetadata build() {
+            return new CompatibilityTransformerPluginMetadata(
+                    source,
+                    id,
+                    name,
+                    version,
+                    additionalVersions,
+                    className,
+                    versionConstraints,
+                    transformerExclusions,
+                    loadBefore,
+                    loadAfter,
+                    loadRequires,
+                    pinLast);
         }
     }
 }
