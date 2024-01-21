@@ -84,10 +84,15 @@ public class Launch {
         blackboard = new HashMap<>();
         final ExtensibleClassLoader parentLoader =
                 (ExtensibleClassLoader) getClass().getClassLoader();
-        final LaunchClassLoader lcl =
-                new LaunchClassLoader(parentLoader.asURLClassLoader().getURLs());
+        LaunchClassLoader lcl;
         if (parentLoader instanceof RfbSystemClassLoader) {
-            ((RfbSystemClassLoader) parentLoader).setChildLoader(lcl);
+            lcl = (LaunchClassLoader) ((RfbSystemClassLoader) parentLoader).getChildLoader();
+            if (lcl == null) {
+                lcl = new LaunchClassLoader(parentLoader.asURLClassLoader().getURLs());
+                ((RfbSystemClassLoader) parentLoader).setChildLoader(lcl);
+            }
+        } else {
+            lcl = new LaunchClassLoader(parentLoader.asURLClassLoader().getURLs());
         }
         classLoader = lcl;
         Main.launchLoader = lcl;

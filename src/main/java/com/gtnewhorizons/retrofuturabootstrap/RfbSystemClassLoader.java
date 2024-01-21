@@ -75,7 +75,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
     }
 
     /** Invoked by Java itself */
-    public RfbSystemClassLoader(ClassLoader parent) {
+    public RfbSystemClassLoader(ClassLoader parent) throws ReflectiveOperationException {
         this("RFB-System", getUrlClasspathEntries(parent));
         Thread.currentThread().setContextClassLoader(this);
     }
@@ -83,6 +83,19 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
     /** Registers a fresh LaunchClassLoader as the child of this loader. */
     public void setChildLoader(ExtensibleClassLoader ecl) {
         childLoader = ecl;
+    }
+
+    public ExtensibleClassLoader getChildLoader() {
+        if (childLoader == null) {
+            try {
+                Class<?> lclClass = Class.forName("net.minecraft.launchwrapper.LaunchClassLoader", true, this);
+                setChildLoader((ExtensibleClassLoader)
+                        lclClass.getConstructor(URL[].class).newInstance((Object) getURLs()));
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return childLoader;
     }
 
     public static URL[] getUrlClasspathEntries(ClassLoader appClassLoader) {
@@ -134,7 +147,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
             if (name.startsWith(delegation)) {
                 boolean wasAdded = isDelegatingToChild.add(name);
                 try {
-                    return ((URLClassLoader) childLoader).loadClass(name);
+                    return ((URLClassLoader) getChildLoader()).loadClass(name);
                 } finally {
                     if (wasAdded) {
                         isDelegatingToChild.remove(name);
