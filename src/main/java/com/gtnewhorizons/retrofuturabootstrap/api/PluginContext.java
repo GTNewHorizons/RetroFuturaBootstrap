@@ -9,15 +9,15 @@ import java.util.Map;
  */
 public final class PluginContext {
     private final List<CompatibilityTransformerPluginMetadata> pluginMetadata;
-    private final List<CompatibilityTransformerPlugin> loadedPlugins;
+    private final List<CompatibilityTransformerPluginHandle> loadedPlugins;
     private final Map<String, CompatibilityTransformerPluginMetadata> pluginMetadataById;
-    private final Map<String, CompatibilityTransformerPlugin> loadedPluginsById;
+    private final Map<String, CompatibilityTransformerPluginHandle> loadedPluginsById;
 
     public PluginContext(
             List<CompatibilityTransformerPluginMetadata> pluginMetadata,
-            List<CompatibilityTransformerPlugin> loadedPlugins,
+            List<CompatibilityTransformerPluginHandle> loadedPlugins,
             Map<String, CompatibilityTransformerPluginMetadata> pluginMetadataById,
-            Map<String, CompatibilityTransformerPlugin> loadedPluginsById) {
+            Map<String, CompatibilityTransformerPluginHandle> loadedPluginsById) {
         this.pluginMetadata = pluginMetadata;
         this.loadedPlugins = loadedPlugins;
         this.pluginMetadataById = pluginMetadataById;
@@ -34,7 +34,7 @@ public final class PluginContext {
     /**
      * @return Plugin classes of the plugins loaded so far during the loading process.
      */
-    public List<CompatibilityTransformerPlugin> loadedPlugins() {
+    public List<CompatibilityTransformerPluginHandle> loadedPlugins() {
         return loadedPlugins;
     }
 
@@ -48,7 +48,7 @@ public final class PluginContext {
     /**
      * @return ID-indexed lookup table for plugin classes.
      */
-    public Map<String, CompatibilityTransformerPlugin> loadedPluginsById() {
+    public Map<String, CompatibilityTransformerPluginHandle> loadedPluginsById() {
         return loadedPluginsById;
     }
 }

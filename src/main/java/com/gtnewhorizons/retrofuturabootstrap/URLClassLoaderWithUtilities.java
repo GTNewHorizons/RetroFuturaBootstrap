@@ -3,8 +3,10 @@ package com.gtnewhorizons.retrofuturabootstrap;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
+import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformerHandle;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
+import java.util.Collection;
 
 /**
  * Non-Java-version-specific extensions to {@link URLClassLoaderBase}
@@ -31,23 +33,34 @@ public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
     }
 
     public byte[] runCompatibilityTransformers(
-            final Iterable<SimpleClassTransformer> compatibilityTransformers,
+            final Collection<SimpleClassTransformerHandle> compatibilityTransformers,
             final SimpleClassTransformer.Context context,
             final String className,
             byte[] basicClass) {
+        if (compatibilityTransformers.isEmpty()) {
+            return basicClass;
+        }
+        final ExtensibleClassLoader self = (ExtensibleClassLoader) this;
         int xformerIndex = 0;
         final ClassNodeHandle nodeHandle = new ClassNodeHandle(basicClass);
-        for (SimpleClassTransformer xformer : compatibilityTransformers) {
+        xformerLoop:
+        for (SimpleClassTransformerHandle handle : compatibilityTransformers) {
+            for (final String exclusion : handle.exclusions()) {
+                if (className.startsWith(exclusion)) {
+                    continue xformerLoop;
+                }
+            }
+            final SimpleClassTransformer xformer = handle.transformer();
             try {
-                if (xformer.shouldTransformClass((ExtensibleClassLoader) this, context, className, basicClass)) {
-                    xformer.transformClass((ExtensibleClassLoader) this, context, className, nodeHandle);
+                if (xformer.shouldTransformClass(self, context, className, basicClass)) {
+                    xformer.transformClass(self, context, className, nodeHandle);
 
                     if (Main.cfgDumpLoadedClassesPerTransformer) {
                         final byte[] newBytes = nodeHandle.computeBytes();
                         if (newBytes != null) {
                             Main.dumpClass(
                                     this.getClassLoaderName(),
-                                    String.format("%s__S%03d_%s", className, xformerIndex, xformer.name()),
+                                    String.format("%s__S%03d_%s", className, xformerIndex, xformer.id()),
                                     newBytes);
                         }
                     }

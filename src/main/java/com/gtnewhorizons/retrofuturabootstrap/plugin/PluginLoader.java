@@ -2,10 +2,13 @@ package com.gtnewhorizons.retrofuturabootstrap.plugin;
 
 import com.gtnewhorizons.retrofuturabootstrap.BuildConfig;
 import com.gtnewhorizons.retrofuturabootstrap.Main;
+import com.gtnewhorizons.retrofuturabootstrap.algorithm.StableTopologicalSort;
 import com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPlugin;
+import com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPluginHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPluginMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.PluginContext;
 import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
+import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformerHandle;
 import com.gtnewhorizons.retrofuturabootstrap.versioning.DefaultArtifactVersion;
 import java.io.IOException;
 import java.io.Reader;
@@ -27,14 +30,18 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Class to scan and load RFB {@link com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPlugin}s */
 public final class PluginLoader {
@@ -45,10 +52,10 @@ public final class PluginLoader {
     // Metadata of plugins in loading order
     private static final ArrayList<CompatibilityTransformerPluginMetadata> loadedPluginMetadata = new ArrayList<>();
     private static final Map<String, CompatibilityTransformerPluginMetadata> loadedPluginMetadataById = new HashMap<>();
-    private static final ArrayList<CompatibilityTransformerPlugin> loadedPlugins = new ArrayList<>();
-    private static final Map<String, CompatibilityTransformerPlugin> loadedPluginsById = new HashMap<>();
+    private static final ArrayList<CompatibilityTransformerPluginHandle> loadedPlugins = new ArrayList<>();
+    private static final Map<String, CompatibilityTransformerPluginHandle> loadedPluginsById = new HashMap<>();
 
-    public static void initializePlugins() {
+    public static void initializePlugins() throws Throwable {
         final List<Path> pluginManifests = findPluginManifests();
         final List<CompatibilityTransformerPluginMetadata> pluginMetadata = new ArrayList<>(pluginManifests.size());
         for (final Path manifest : pluginManifests) {
@@ -64,7 +71,7 @@ public final class PluginLoader {
                         new CompatibilityTransformerPluginMetadata(manifest.toUri(), id, props);
                 pluginMetadata.add(meta);
             } catch (Exception e) {
-                Main.logger.error("Invalid plugin manifest {}", manifest, e);
+                Main.logger.error("Skipping invalid plugin manifest {}", manifest, e);
             }
         }
         pluginMetadata.add(makeRfbMetadata());
@@ -102,31 +109,39 @@ public final class PluginLoader {
 
                 final CompatibilityTransformerPlugin plugin =
                         (CompatibilityTransformerPlugin) klass.getConstructor().newInstance();
+                final CompatibilityTransformerPluginHandle handle =
+                        new CompatibilityTransformerPluginHandle(pluginMeta, plugin);
                 Main.logger.info(
                         "Constructed RFB plugin {} ({}): {} ({})",
                         pluginMeta.idAndVersion(),
                         pluginMeta.name(),
                         className,
                         pluginMeta.source());
-                loadedPlugins.add(plugin);
-                loadedPluginsById.put(pluginMeta.id(), plugin);
+                loadedPlugins.add(handle);
+                loadedPluginsById.put(pluginMeta.id(), handle);
                 for (CompatibilityTransformerPluginMetadata.IdAndVersion extraId : pluginMeta.additionalVersions()) {
-                    loadedPluginsById.put(extraId.id(), plugin);
+                    loadedPluginsById.put(extraId.id(), handle);
                 }
                 plugin.onConstruction(loadingContext);
 
-                final SimpleClassTransformer[] earlyTransformers = plugin.getEarlyTransformers();
+                final SimpleClassTransformer[] earlyTransformers = plugin.makeEarlyTransformers();
                 if (earlyTransformers != null && earlyTransformers.length > 0) {
-                    final List<SimpleClassTransformer> toAdd = Arrays.asList(earlyTransformers);
-                    if (toAdd.stream().anyMatch(Objects::isNull)) {
-                        Main.logger.error(
+                    if (Arrays.stream(earlyTransformers).anyMatch(Objects::isNull)) {
+                        Main.logger.fatal(
                                 "RFB plugin {} ({}) provided a null early class transformer.",
                                 pluginMeta.idAndVersion(),
                                 pluginMeta.name());
                         throw new NullPointerException(
                                 "Null early class transformer returned from RFB plugin " + pluginMeta.idAndVersion());
                     }
+                    final List<SimpleClassTransformerHandle> toAdd = Arrays.stream(earlyTransformers)
+                            .map(xformer -> new SimpleClassTransformerHandle(pluginMeta, plugin, xformer))
+                            .collect(Collectors.toList());
                     Main.mutateCompatibilityTransformers(list -> list.addAll(toAdd));
+                    for (SimpleClassTransformerHandle newlyRegistered : toAdd) {
+                        newlyRegistered.transformer().onRegistration(Objects.requireNonNull(Main.compatLoader));
+                        newlyRegistered.transformer().onRegistration(Objects.requireNonNull(Main.launchLoader));
+                    }
                 }
 
             } catch (ReflectiveOperationException e) {
@@ -139,7 +154,119 @@ public final class PluginLoader {
             }
         }
 
+        if (loadedPlugins.size() != loadedPluginMetadata.size()) {
+            final String[] metaClasses = loadedPluginMetadata.stream()
+                    .map(CompatibilityTransformerPluginMetadata::className)
+                    .toArray(String[]::new);
+            final String[] loadClasses =
+                    loadedPlugins.stream().map(p -> p.getClass().getName()).toArray(String[]::new);
+            Main.logger.fatal(
+                    "RFB loaded plugin and metadata array size mismatch.\nMetadata: {}\n  Loaded: {}",
+                    Arrays.toString(metaClasses),
+                    Arrays.toString(loadClasses));
+            throw new IllegalStateException("Loaded plugin and metadata array size mismatch.");
+        }
+
         closeJarFilesystems();
+
+        // Ensure makeTransformers is only called once for each plugin.
+        final IdentityHashMap<CompatibilityTransformerPluginHandle, SimpleClassTransformer[]> madeTransformersCache =
+                new IdentityHashMap<>(loadedPlugins.size());
+
+        // It is incredibly unlikely any thread would cause a retry in this compare-and-swap loop as we're still very
+        // early in the loading phase, worst case this code will re-run a couple of times if that does happen.
+        Main.mutateCompatibilityTransformers(newTransformers -> {
+            final List<SimpleClassTransformerHandle> toRegister = new ArrayList<>();
+            for (final CompatibilityTransformerPluginHandle handle : loadedPlugins) {
+                final SimpleClassTransformer[] xformers = madeTransformersCache.computeIfAbsent(
+                        handle, h -> h.plugin().makeTransformers());
+                if (xformers == null || xformers.length < 1) {
+                    continue;
+                }
+                for (final SimpleClassTransformer xformer : xformers) {
+                    if (xformer == null) {
+                        throw new NullPointerException("Null transformer produced by RFB plugin "
+                                + handle.metadata().id());
+                    }
+                    final SimpleClassTransformerHandle xhandle =
+                            new SimpleClassTransformerHandle(handle.metadata(), handle.plugin(), xformer);
+                    newTransformers.add(xhandle);
+                    toRegister.add(xhandle);
+                }
+            }
+            final String[] emptyStrA = new String[0];
+            final IdentityHashMap<SimpleClassTransformerHandle, String[]> sortAfterLut = new IdentityHashMap<>();
+            final IdentityHashMap<SimpleClassTransformerHandle, String[]> sortBeforeLut = new IdentityHashMap<>();
+            final IdentityHashMap<SimpleClassTransformerHandle, Boolean> sortLastLut = new IdentityHashMap<>();
+            for (final SimpleClassTransformerHandle xhandle : newTransformers) {
+                final SimpleClassTransformer xformer = xhandle.transformer();
+                String[] sortBefore = xformer.sortBefore();
+                if (sortBefore == null) {
+                    sortBefore = emptyStrA;
+                }
+                String[] sortAfter = xformer.sortAfter();
+                if (sortAfter == null) {
+                    sortAfter = emptyStrA;
+                }
+                boolean sortLast = Arrays.asList(sortAfter).contains("*");
+                sortBeforeLut.put(xhandle, sortBefore);
+                sortAfterLut.put(xhandle, sortAfter);
+                sortLastLut.put(xhandle, sortLast);
+            }
+            // sort transformers
+
+            {
+                final Comparator<SimpleClassTransformerHandle> initialSorter =
+                        Comparator.<SimpleClassTransformerHandle, Boolean>comparing(sortLastLut::get)
+                                .thenComparing(SimpleClassTransformerHandle::id);
+                newTransformers.sort(initialSorter);
+                final List<List<Integer>> edges = new ArrayList<>(newTransformers.size());
+                final Map<String, Integer> idLookup = new HashMap<>();
+                for (int i = 0; i < newTransformers.size(); i++) {
+                    edges.add(new ArrayList<>(0));
+                    idLookup.put(newTransformers.get(i).id(), i);
+                }
+                for (int i = 0; i < newTransformers.size(); i++) {
+                    final SimpleClassTransformerHandle handle = newTransformers.get(i);
+                    final String[] before = sortBeforeLut.get(handle);
+                    final String[] after = sortAfterLut.get(handle);
+                    for (String dep : before) {
+                        final Integer depIdx = idLookup.get(dep);
+                        if (depIdx != null) {
+                            edges.get(depIdx).add(i);
+                        }
+                    }
+                    for (String dep : after) {
+                        final Integer depIdx = idLookup.get(dep);
+                        if (depIdx != null) {
+                            edges.get(i).add(depIdx);
+                        }
+                    }
+                }
+                try {
+                    final List<SimpleClassTransformerHandle> toposorted =
+                            StableTopologicalSort.sort(newTransformers, edges);
+                    newTransformers.clear();
+                    newTransformers.addAll(toposorted);
+                } catch (StableTopologicalSort.CycleException err) {
+                    final Set<SimpleClassTransformerHandle> cycle =
+                            err.cyclicElements(SimpleClassTransformerHandle.class);
+                    Main.logger.error("Cycle found among the following RFB class transformers, aborting launch:");
+                    for (final SimpleClassTransformerHandle xformer : cycle) {
+                        Main.logger.error(
+                                "{} ({})",
+                                xformer.id(),
+                                xformer.pluginMetadata().idAndVersion());
+                    }
+                    throw new RuntimeException("Cycle among RFB transformer sorting constraints.");
+                }
+
+                for (SimpleClassTransformerHandle newlyRegistered : toRegister) {
+                    newlyRegistered.transformer().onRegistration(Objects.requireNonNull(Main.compatLoader));
+                    newlyRegistered.transformer().onRegistration(Objects.requireNonNull(Main.launchLoader));
+                }
+            }
+        });
     }
 
     private static final URI myURI;

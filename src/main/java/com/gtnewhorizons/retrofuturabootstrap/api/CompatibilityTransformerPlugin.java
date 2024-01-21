@@ -20,10 +20,21 @@ public interface CompatibilityTransformerPlugin {
     /**
      * These transformers are simply appended in-order to the transformer list during the plugin construction phase, with order following plugin load order.
      * Useful for transforming other RFB plugins, for other applications use the ordered transformer interface.
+     * The transformers are simply inserted at the end of the transformer array during plugin loading, and only get re-sorted according to their sortAfter/sortBefore constraints after all plugins are constructed.
      *
      * @return Array of non-null transformers to register, or null if none are needed.
      */
-    default @NotNull SimpleClassTransformer @Nullable [] getEarlyTransformers() {
+    default @NotNull SimpleClassTransformer @Nullable [] makeEarlyTransformers() {
+        return null;
+    }
+
+    /**
+     * Called after all plugins are constructed to gather compatibility transformers to register in bulk.
+     * Make sure to implement the sortAfter/sortBefore methods if you want to ensure a specific ordering of your transformer.
+     *
+     * @return Array of non-null transformers to register, or null if none are needed.
+     */
+    default @NotNull SimpleClassTransformer @Nullable [] makeTransformers() {
         return null;
     }
 }

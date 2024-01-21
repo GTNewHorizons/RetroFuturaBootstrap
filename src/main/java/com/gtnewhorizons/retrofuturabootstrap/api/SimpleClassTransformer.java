@@ -24,7 +24,7 @@ public interface SimpleClassTransformer {
      */
     @NotNull
     @Pattern("[a-z0-9-]+")
-    String name();
+    String id();
 
     /**
      * @return Array of "plugin:transformer" strings that this transformer should run after, include "*" to "pin" the transformer to the end of the list instead of the beginning. Return null if none.
@@ -37,6 +37,13 @@ public interface SimpleClassTransformer {
      * @return Array of "plugin:transformer" strings that this transformer should run before. Return null if none.
      */
     default @NotNull String @Nullable [] sortBefore() {
+        return null;
+    }
+
+    /**
+     * @return Array of class name prefixes (in the dot-separated format) to exclude from transformation by this transformer on top of the plugin's exclusions. Return null if none.
+     */
+    default @NotNull String @Nullable [] additionalExclusions() {
         return null;
     }
 

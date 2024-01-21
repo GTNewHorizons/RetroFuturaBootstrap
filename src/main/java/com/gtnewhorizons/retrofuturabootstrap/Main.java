@@ -1,6 +1,7 @@
 package com.gtnewhorizons.retrofuturabootstrap;
 
-import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
+import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
+import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformerHandle;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -23,15 +24,18 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class Main {
     /** The compatibility ClassLoader that's a parent of LaunchClassLoader. */
-    public static SimpleTransformingClassLoader compatLoader;
+    public @Nullable static SimpleTransformingClassLoader compatLoader;
+    /** The LaunchClassLoader handle, can't use the type directly because it's loaded in a different classloader. */
+    public @Nullable static ExtensibleClassLoader launchLoader;
     /** An ArrayList of all compatibility class transformers used, mutable, in order of application */
-    private static final AtomicReference<@NotNull SimpleClassTransformer[]> compatibilityTransformers =
-            new AtomicReference<>(new SimpleClassTransformer[0]);
+    private static final @NotNull AtomicReference<@NotNull SimpleClassTransformerHandle[]> compatibilityTransformers =
+            new AtomicReference<>(new SimpleClassTransformerHandle[0]);
     /** The ClassLoader that loaded this class. */
-    public static final ClassLoader appClassLoader = Main.class.getClassLoader();
+    public static final @NotNull ClassLoader appClassLoader = Main.class.getClassLoader();
 
     /** Get the system property {@code propName} value as a boolean, or default to {@code defaultValue} if not present */
     private static boolean getBooleanOr(final String propName, final boolean defaultValue) {
@@ -47,11 +51,11 @@ public class Main {
     }
 
     /** Returns the running version of RFB */
-    public static String getVersion() {
+    public static @NotNull String getVersion() {
         return BuildConfig.VERSION;
     }
 
-    public static final String RFB_CLASS_DUMP_PREFIX = "RFB_CLASS_DUMP";
+    public static final @NotNull String RFB_CLASS_DUMP_PREFIX = "RFB_CLASS_DUMP";
 
     /** Controlled by system property {@code rfb.dumpLoadedClasses=false}, whether post-transform classes should be dumped to RFB_CLASS_DUMP/ */
     public static final boolean cfgDumpLoadedClasses = getBooleanOr("rfb.dumpLoadedClasses", false)
@@ -68,21 +72,21 @@ public class Main {
     public static final boolean cfgDumpClassesAsynchronously = getBooleanOr("rfb.dumpClassesAsynchronously", true);
 
     /** The target class dumping directory, initialized during commandline option parsing. */
-    public static AtomicReference<Path> classDumpDirectory = new AtomicReference<>(null);
+    public static @NotNull AtomicReference<@Nullable Path> classDumpDirectory = new AtomicReference<>(null);
 
     /** Game version/profile name as parsed during early startup. */
-    public static String initialGameVersion;
+    public static @Nullable String initialGameVersion;
     /** Game directory as parsed during early startup. */
-    public static File initialGameDir;
+    public static @Nullable File initialGameDir;
     /** Assets directory as parsed during early startup. */
-    public static File initialAssetsDir;
+    public static @Nullable File initialAssetsDir;
     /** Public logger accessor for convenience */
-    public static Logger logger = LogManager.getLogger("LaunchWrapper");
+    public static @NotNull Logger logger = LogManager.getLogger("LaunchWrapper");
 
-    public static final String JAVA_VERSION = URLClassLoaderBase.getJavaVersion();
+    public static final @NotNull String JAVA_VERSION = URLClassLoaderBase.getJavaVersion();
     public static final int JAVA_MAJOR_VERSION = URLClassLoaderBase.getJavaMajorVersion();
 
-    private static final ExecutorService classDumpingService = cfgDumpClassesAsynchronously
+    private static final @Nullable ExecutorService classDumpingService = cfgDumpClassesAsynchronously
             ? Executors.newFixedThreadPool(
                     Math.min(4, Runtime.getRuntime().availableProcessors()), new ThreadFactory() {
                         @Override
@@ -96,14 +100,14 @@ public class Main {
             : null;
 
     /** A utility to convert the java.class.path system property to an array of URLs */
-    public static URL[] getUrlClasspathEntries() {
+    public static @NotNull URL @NotNull [] getUrlClasspathEntries() {
         return SimpleTransformingClassLoader.getUrlClasspathEntries(appClassLoader);
     }
 
     /**
      * @return An immutable view on compatibility transformers.
      */
-    public static List<SimpleClassTransformer> getCompatibilityTransformers() {
+    public static @NotNull List<@NotNull SimpleClassTransformerHandle> getCompatibilityTransformers() {
         return Collections.unmodifiableList(Arrays.asList(compatibilityTransformers.get()));
     }
 
@@ -111,12 +115,13 @@ public class Main {
      * Updates the compatibility transformers list using the given function, mutator might be called multiple times if there's multiple threads racing to modify the list.
      * @param mutator A function that modifies a mutable List of compatibility transformers.
      */
-    public static void mutateCompatibilityTransformers(Consumer<List<SimpleClassTransformer>> mutator) {
+    public static void mutateCompatibilityTransformers(
+            @NotNull Consumer<@NotNull List<@NotNull SimpleClassTransformerHandle>> mutator) {
         while (true) {
-            final SimpleClassTransformer[] original = compatibilityTransformers.get();
-            final ArrayList<SimpleClassTransformer> mutable = new ArrayList<>(Arrays.asList(original));
+            final SimpleClassTransformerHandle[] original = compatibilityTransformers.get();
+            final ArrayList<SimpleClassTransformerHandle> mutable = new ArrayList<>(Arrays.asList(original));
             mutator.accept(mutable);
-            final SimpleClassTransformer[] modified = mutable.toArray(new SimpleClassTransformer[0]);
+            final SimpleClassTransformerHandle[] modified = mutable.toArray(new SimpleClassTransformerHandle[0]);
             if (compatibilityTransformers.compareAndSet(original, modified)) {
                 break;
             }

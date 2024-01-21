@@ -90,6 +90,7 @@ public class Launch {
             ((SimpleTransformingClassLoader) parentLoader).setChildLoader(lcl);
         }
         classLoader = lcl;
+        Main.launchLoader = lcl;
         Thread.currentThread().setContextClassLoader(lcl);
         if (Class.forName("org.objectweb.asm.ClassWriter", true, lcl).getClassLoader() != lcl) {
             throw new IllegalStateException(
