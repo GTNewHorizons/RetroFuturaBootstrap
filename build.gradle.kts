@@ -153,7 +153,7 @@ publishing {
 
   repositories {
     maven {
-      url = uri("http://jenkins.usrv.eu:8081/nexus/content/repositories/releases")
+      url = uri("https://nexus.gtnewhorizons.com/repository/releases/")
       isAllowInsecureProtocol = true
       credentials {
         username = System.getenv("MAVEN_USER") ?: "NONE"
