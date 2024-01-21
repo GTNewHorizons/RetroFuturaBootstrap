@@ -3,11 +3,13 @@ package com.gtnewhorizons.retrofuturabootstrap;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.net.JarURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
@@ -17,6 +19,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
@@ -36,6 +39,8 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
     private ClassLoader parent = getClass().getClassLoader();
     /** Reference to the platform class loader that can load JRE/JDK classes */
     private static final ClassLoader platformLoader = getPlatformClassLoader();
+    /** Reference to the child LaunchClassLoader, used to lookup cached classes to avoid duplicate loading. */
+    private ExtensibleClassLoader childLoader = null;
 
     /** A ConcurrentHashMap cache of all classes loaded via this loader */
     private final Map<String, WeakReference<Class<?>>> cachedClasses = new ConcurrentHashMap<>();
@@ -46,6 +51,10 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
      * A HashSet of all class prefixes (e.g. "org.lwjgl.") to redirect to the parent classloader.
      */
     private Set<String> classLoaderExceptions = new HashSet<>();
+    /**
+     * A HashSet of all class prefixes (e.g. "org.objectweb.asm") to redirect to the child classloader.
+     */
+    public Set<String> childDelegations = new HashSet<>();
 
     /** A dummy, empty manifest field */
     private static final Manifest EMPTY = new Manifest();
@@ -62,9 +71,39 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
                 "org.apache.logging.",
                 "LZMA.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
+        childDelegations.add("org.objectweb.asm.");
     }
 
-    /** Check the cache for a class that already has been loaded */
+    /** Invoked by Java itself */
+    public SimpleTransformingClassLoader(ClassLoader parent) {
+        this("RFB-System", getUrlClasspathEntries(parent));
+        Thread.currentThread().setContextClassLoader(this);
+    }
+
+    /** Registers a fresh LaunchClassLoader as the child of this loader. */
+    public void setChildLoader(ExtensibleClassLoader ecl) {
+        childLoader = ecl;
+    }
+
+    public static URL[] getUrlClasspathEntries(ClassLoader appClassLoader) {
+        if (appClassLoader instanceof URLClassLoader) {
+            return ((URLClassLoader) appClassLoader).getURLs();
+        }
+        return Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
+                .map(path -> {
+                    try {
+                        return new File(path).toURI().toURL();
+                    } catch (MalformedURLException e) {
+                        System.err.printf("Could not parse %s into an URL%n%s%n", path, e.getMessage());
+                        e.printStackTrace(System.err);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .toArray(URL[]::new);
+    }
+
+    @Override
     public Class<?> findCachedClass(final String name) {
         final WeakReference<Class<?>> cached = cachedClasses.get(name);
         if (cached != null) {
@@ -76,6 +115,7 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
         return null;
     }
 
+    private final ThreadLocal<HashSet<String>> isDelegatingToChild = ThreadLocal.withInitial(HashSet::new);
     /**
      * Find/load a class by name
      */
@@ -84,6 +124,22 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
         for (final String exception : classLoaderExceptions) {
             if (name.startsWith(exception)) {
                 return parent.loadClass(name);
+            }
+        }
+        final HashSet<String> isDelegatingToChild = this.isDelegatingToChild.get();
+        if (isDelegatingToChild.contains(name)) {
+            throw new ClassNotFoundException(name);
+        }
+        for (final String delegation : childDelegations) {
+            if (name.startsWith(delegation)) {
+                boolean wasAdded = isDelegatingToChild.add(name);
+                try {
+                    return ((URLClassLoader) childLoader).loadClass(name);
+                } finally {
+                    if (wasAdded) {
+                        isDelegatingToChild.remove(name);
+                    }
+                }
             }
         }
         {
@@ -189,6 +245,19 @@ public final class SimpleTransformingClassLoader extends URLClassLoaderWithUtili
     @Override
     public void addURL(final URL url) {
         super.addURL(url);
+    }
+
+    /**
+     * Required for Java Agents to work on HotSpot
+     * @param path The file path added to the classpath
+     */
+    @SuppressWarnings("unused")
+    public void appendToClassPathForInstrumentation(String path) {
+        try {
+            addURL(new File(path).toURI().toURL());
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /** Returns the saved classpath list */

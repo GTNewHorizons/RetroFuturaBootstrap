@@ -5,9 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -15,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -100,20 +97,7 @@ public class Main {
 
     /** A utility to convert the java.class.path system property to an array of URLs */
     public static URL[] getUrlClasspathEntries() {
-        if (appClassLoader instanceof URLClassLoader) {
-            return ((URLClassLoader) appClassLoader).getURLs();
-        }
-        return Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
-                .map(path -> {
-                    try {
-                        return new File(path).toURI().toURL();
-                    } catch (MalformedURLException e) {
-                        logger.warn("Could not parse {} into an URL", path, e);
-                        return null;
-                    }
-                })
-                .filter(Objects::nonNull)
-                .toArray(URL[]::new);
+        return SimpleTransformingClassLoader.getUrlClasspathEntries(appClassLoader);
     }
 
     /**
@@ -140,13 +124,11 @@ public class Main {
     }
 
     public static void main(String[] args) throws Throwable {
-        if (cfgRegisterURLStreamHandler) {
-            URLProtocolFactory.register();
+        if (!(ClassLoader.getSystemClassLoader() instanceof SimpleTransformingClassLoader)) {
+            throw new IllegalStateException(
+                    "System classloader not overwritten, add -Djava.system.class.loader=com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader to your JVM flags");
         }
-        final URL[] cpEntries = getUrlClasspathEntries();
-        final SimpleTransformingClassLoader compatLoader = new SimpleTransformingClassLoader("RFB-Compat", cpEntries);
-        Thread.currentThread().setContextClassLoader(compatLoader);
-        Main.compatLoader = compatLoader;
+        Main.compatLoader = (SimpleTransformingClassLoader) ClassLoader.getSystemClassLoader();
         try {
             Class<?> launchClass = Class.forName("net.minecraft.launchwrapper.Launch", true, compatLoader);
             Method main = launchClass.getMethod("main", String[].class);

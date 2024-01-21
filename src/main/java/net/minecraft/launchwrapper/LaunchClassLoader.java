@@ -9,6 +9,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -135,7 +136,6 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 "sun.",
                 "org.lwjgl.",
                 "org.apache.logging.",
-                "org.objectweb.asm.",
                 "net.minecraft.launchwrapper.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
         transformerExceptions.addAll(Arrays.asList(
@@ -172,8 +172,17 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             transformers.add(xformer);
             LogWrapper.logger.debug("Registered class transformer {}", transformerClassName);
         } catch (Throwable e) {
-            LogWrapper.logger.warn("Could not register a transformer {}", transformerClassName, e);
+            Throwable cause = e;
+            if (cause instanceof InvocationTargetException) {
+                cause = cause.getCause();
+            }
+            LogWrapper.logger.warn("Could not register a transformer {}", transformerClassName, cause);
         }
+    }
+
+    @Override
+    public Class<?> findCachedClass(final String name) {
+        return cachedClasses.get(name);
     }
 
     /**
@@ -207,13 +216,6 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             final Class<?> cached = cachedClasses.get(name);
             if (cached != null) {
                 return cached;
-            }
-        }
-        if (parentRfb != null) {
-            final Class<?> parentCached = parentRfb.findCachedClass(name);
-            if (parentCached != null) {
-                cachedClasses.put(name, parentCached);
-                return parentCached;
             }
         }
         boolean runTransformers = true;
@@ -281,17 +283,25 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             }
         }
         if (parentRfb != null) {
-            try {
-                final SimpleClassTransformer.Context context = runTransformers
-                        ? SimpleClassTransformer.Context.LCL_WITH_TRANSFORMS
-                        : SimpleClassTransformer.Context.LCL_NO_TRANSFORMS;
-                classBytes = runCompatibilityTransformers(
-                        Main.getCompatibilityTransformers(), context, transformedName, classBytes);
-            } catch (Throwable t) {
-                ClassNotFoundException err =
-                        new ClassNotFoundException("Exception caught while transforming class " + name, t);
-                LogWrapper.logger.debug("Transformer error", err);
-                throw err;
+            boolean doCompatTransforms = true;
+            for (String exclusion : parentRfb.childDelegations) {
+                if (transformedName.startsWith(exclusion)) {
+                    doCompatTransforms = false;
+                }
+            }
+            if (doCompatTransforms) {
+                try {
+                    final SimpleClassTransformer.Context context = runTransformers
+                            ? SimpleClassTransformer.Context.LCL_WITH_TRANSFORMS
+                            : SimpleClassTransformer.Context.LCL_NO_TRANSFORMS;
+                    classBytes = runCompatibilityTransformers(
+                            Main.getCompatibilityTransformers(), context, transformedName, classBytes);
+                } catch (Throwable t) {
+                    ClassNotFoundException err =
+                            new ClassNotFoundException("Exception caught while transforming class " + name, t);
+                    LogWrapper.logger.debug("Transformer error", err);
+                    throw err;
+                }
             }
         }
         if (classBytes == null) {

@@ -52,4 +52,11 @@ public interface ExtensibleClassLoader {
      */
     @NotNull
     Class<?> findClass(final @NotNull String name) throws ClassNotFoundException;
+
+    /**
+     * Check the cache for a class that already has been loaded
+     * @param name the name of the class
+     * @return The loaded class if found, or null if not found
+     */
+    public Class<?> findCachedClass(final String name);
 }

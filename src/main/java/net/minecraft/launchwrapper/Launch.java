@@ -1,11 +1,12 @@
 package net.minecraft.launchwrapper;
 
 import com.gtnewhorizons.retrofuturabootstrap.Main;
+import com.gtnewhorizons.retrofuturabootstrap.SimpleTransformingClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.plugin.PluginLoader;
 import java.io.File;
-import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
@@ -29,7 +30,7 @@ public class Launch {
      * Hack for mixin line-number-based stacktrace detection, the line number of the realLaunch() call has to be less than 132.
      * See: <a href="https://github.com/LegacyModdingMC/UniMix/blob/bbd3c93bd0e1f5979dbeb983cc7f55e73a86e281/src/launchwrapper/java/org/spongepowered/asm/service/mojang/MixinServiceLaunchWrapper.java#L183-L185">org.spongepowered.asm.service.mojang.MixinServiceLaunchWrapper#getInitialPhase()</a>.
      */
-    private void launch(String[] args) {
+    private void launch(String[] args) throws Throwable {
         realLaunch(args);
     }
 
@@ -50,7 +51,7 @@ public class Launch {
     public static Map<String, Object> blackboard;
 
     /** The actual main() invoked by the game launcher */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Throwable {
         if (!(Launch.class.getClassLoader() instanceof ExtensibleClassLoader)) {
             throw new UnsupportedOperationException(
                     "RetroFuturaBootstrap requires launching using com.gtnewhorizons.retrofuturabootstrap.Main");
@@ -78,15 +79,22 @@ public class Launch {
      *     <li>Initializes blackboard to an empty map</li>
      * </ol>
      */
-    private Launch() {
+    private Launch() throws Throwable {
         LogWrapper.configureLogging();
         blackboard = new HashMap<>();
         final ExtensibleClassLoader parentLoader =
                 (ExtensibleClassLoader) getClass().getClassLoader();
         final LaunchClassLoader lcl =
                 new LaunchClassLoader(parentLoader.asURLClassLoader().getURLs());
+        if (parentLoader instanceof SimpleTransformingClassLoader) {
+            ((SimpleTransformingClassLoader) parentLoader).setChildLoader(lcl);
+        }
         classLoader = lcl;
         Thread.currentThread().setContextClassLoader(lcl);
+        if (Class.forName("org.objectweb.asm.ClassWriter", true, lcl).getClassLoader() != lcl) {
+            throw new IllegalStateException(
+                    "ASM ClassWriter must load using LaunchClassLoader to avoid further errors.");
+        }
     }
 
     /**
@@ -127,7 +135,7 @@ public class Launch {
      *
      * @param args commandline arguments
      */
-    private void realLaunch(String[] args) {
+    private void realLaunch(String[] args) throws Throwable {
         final OptionParser parser = new OptionParser();
         final OptionSpec<String> aVersion =
                 parser.accepts("version").withRequiredArg().ofType(String.class);
@@ -167,13 +175,9 @@ public class Launch {
                         Files.createDirectory(dumpPath);
                     } catch (FileAlreadyExistsException e) {
                         continue;
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
                     }
                     break;
                 }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
             Main.classDumpDirectory.set(dumpPath);
         }
@@ -212,8 +216,8 @@ public class Launch {
                     if (firstTweaker == null) {
                         firstTweaker = tweaker;
                     }
-                } catch (ReflectiveOperationException e) {
-                    throw new RuntimeException(e);
+                } catch (InvocationTargetException e) {
+                    throw e.getCause();
                 }
             }
 
@@ -240,8 +244,8 @@ public class Launch {
             final Class<?> launchTarget = Class.forName(launchTargetName, false, classLoader);
             final Method mainM = launchTarget.getMethod("main", String[].class);
             mainM.invoke(null, (Object) argumentList.toArray(new String[0]));
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
         }
     }
 }
