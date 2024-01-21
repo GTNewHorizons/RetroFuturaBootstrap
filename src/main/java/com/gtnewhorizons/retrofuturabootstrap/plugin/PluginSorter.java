@@ -130,10 +130,10 @@ public class PluginSorter {
                     if (!constraint.version().containsVersion(constraintLoadedVersion)) {
                         final RfbPluginMetadata constraintLoaded = pluginsById.get(constraintId);
                         Main.logger.error(
-                                "Version requirement not satisfied: `{}` ({}) requires `{}`, but version `{}` (`{}`: {}) was found",
+                                "Version requirement not satisfied: `{}` ({}) requires `{}`, but version `{}` ({}) was found",
                                 plugin.idAndVersion(),
                                 plugin.source(),
-                                constraintLoadedVersion,
+                                constraint.version(),
                                 constraintLoaded.idAndVersion(),
                                 constraintLoaded.source());
                         criticalIssuesFound = true;

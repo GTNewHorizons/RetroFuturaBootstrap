@@ -22,4 +22,15 @@ public final class RfbApiImpl implements RfbApi {
     public @NotNull RfbSystemClassLoader compatClassLoader() {
         return Main.compatLoader;
     }
+
+    @Override
+    public int javaMajorVersion() {
+        return Main.JAVA_MAJOR_VERSION;
+    }
+
+    @Override
+    public String javaVersion() {
+        return Main.JAVA_VERSION;
+    }
+
 }

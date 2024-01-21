@@ -25,4 +25,14 @@ public interface RfbApi {
      */
     @NotNull
     RfbSystemClassLoader compatClassLoader();
+
+    /**
+     * @return The Java major version as an integer (e.g. 8, 9, 21)
+     */
+    int javaMajorVersion();
+
+    /**
+     * @return Java runtime version, for example 17.0.10 or 1.8.0.402-b06 (_ replaced with ., anything after + stripped)
+     */
+    String javaVersion();
 }

@@ -108,6 +108,10 @@ tasks.jar {
   manifest.attributes["Implementation-Vendor"] = "GTNewHorizons"
 }
 
+tasks.named<Jar>("sourcesJar").configure {
+  into("META-INF/versions/9") { from(java9.java.sourceDirectories) }
+}
+
 tasks.processResources {
   inputs.property("version", project.version.toString())
   filesMatching("**/*.properties") { expand("version" to project.version.toString()) }

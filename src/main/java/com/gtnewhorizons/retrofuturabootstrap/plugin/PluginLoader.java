@@ -10,7 +10,11 @@ import com.gtnewhorizons.retrofuturabootstrap.api.RfbPlugin;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.versioning.DefaultArtifactVersion;
+
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
@@ -31,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -42,6 +47,8 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /** Class to scan and load RFB {@link RfbPlugin}s */
 public final class PluginLoader {
@@ -56,23 +63,8 @@ public final class PluginLoader {
     private static final Map<String, RfbPluginHandle> loadedPluginsById = new HashMap<>();
 
     public static void initializePlugins() throws Throwable {
-        final List<Path> pluginManifests = findPluginManifests();
-        final List<RfbPluginMetadata> pluginMetadata = new ArrayList<>(pluginManifests.size());
-        for (final Path manifest : pluginManifests) {
-            try {
-                final String filename = manifest.getFileName().toString();
-                final int dot = filename.lastIndexOf('.');
-                final String id = filename.substring(0, dot);
-                final Properties props = new Properties();
-                try (Reader reader = Files.newBufferedReader(manifest, StandardCharsets.UTF_8)) {
-                    props.load(reader);
-                }
-                final RfbPluginMetadata meta = new RfbPluginMetadata(manifest.toUri(), id, props);
-                pluginMetadata.add(meta);
-            } catch (Exception e) {
-                Main.logger.error("Skipping invalid plugin manifest {}", manifest, e);
-            }
-        }
+        final List<RfbPluginMetadata> pluginMetadata = findPluginManifests();
+
         pluginMetadata.add(makeRfbMetadata());
         pluginMetadata.add(makeJavaMetadata());
 
@@ -307,8 +299,7 @@ public final class PluginLoader {
                 false);
     }
 
-    private static List<Path> findPluginManifests() {
-        final ArrayList<Path> manifestsFound = new ArrayList<>();
+    private static List<RfbPluginMetadata> findPluginManifests() {
         final URL[] earlyCp = Main.compatLoader.getURLs();
         final HashSet<URI> urisToSearch = new HashSet<>(earlyCp.length);
         for (URL entry : earlyCp) {
@@ -345,56 +336,84 @@ public final class PluginLoader {
             }
         }
         int count = 0;
+        final List<RfbPluginMetadata> pluginMetadata = new ArrayList<>();
         // TODO: cache
+        final String zipPrefix = META_INF + "/" + RFB_PLUGINS_DIR + "/";
         for (URI uriToSearch : urisToSearch) {
             try {
                 final boolean isJar =
                         uriToSearch.getPath().toLowerCase(Locale.ROOT).endsWith(".jar");
-                if (isJar) {
-                    uriToSearch = new URI("jar:" + uriToSearch + "!/");
-                }
                 count++;
-                if (isJar) {
-                    try {
-                        jarFilesystems.add(
-                                FileSystems.newFileSystem(uriToSearch, Collections.emptyMap(), Main.compatLoader));
-                    } catch (FileSystemAlreadyExistsException e) {
-                        /*ignore*/
-                    }
-                }
                 final Path root = Paths.get(uriToSearch);
                 if (!isJar && !Files.isDirectory(root)) {
                     Main.logger.warn("Skipping {} in RFB plugin search.", root);
                     continue;
                 }
-                final Path pluginsDir = root.resolve(META_INF).resolve(RFB_PLUGINS_DIR);
-                if (!Files.isDirectory(pluginsDir)) {
-                    continue;
-                }
-                Files.walkFileTree(
+                if (isJar) {
+                    try (final ZipFile zip = new ZipFile(root.toFile(), ZipFile.OPEN_READ, StandardCharsets.UTF_8)) {
+                        for (final Enumeration<? extends ZipEntry> enm = zip.entries(); enm.hasMoreElements();) {
+                            final ZipEntry ze = enm.nextElement();
+                            if (ze.isDirectory() || !ze.getName().startsWith(zipPrefix)) {
+                                continue;
+                            }
+                            final URI uri = new URI("jar:" + root.toUri() + "!" + ze.getName());
+                            final String filename = ze.getName().replace(zipPrefix, "");
+                            if (filename.contains("/")) {
+                                continue;
+                            }
+                            try (final InputStream is = zip.getInputStream(ze);
+                                final Reader rdr = new InputStreamReader(is, StandardCharsets.UTF_8);
+                                final BufferedReader bufReader = new BufferedReader(rdr)) {
+                                pluginMetadata.add(parseMetadata(uri, filename, bufReader));
+                            } catch (Exception e) {
+                                Main.logger.error("Skipping invalid plugin manifest {}", uri, e);
+                            }
+                        }
+                    } catch (Exception e) {
+                        Main.logger.error("Error while parsing plugin manifests from jar file: " + root, e);
+                    }
+                } else {
+                    final Path pluginsDir = root.resolve(META_INF).resolve(RFB_PLUGINS_DIR);
+                    if (!Files.isDirectory(pluginsDir)) {
+                        continue;
+                    }
+                    Files.walkFileTree(
                         pluginsDir,
                         new HashSet<>(Collections.singletonList(FileVisitOption.FOLLOW_LINKS)),
                         1,
                         new SimpleFileVisitor<Path>() {
+
                             @Override
                             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                                 Objects.requireNonNull(file);
                                 Objects.requireNonNull(attrs);
-                                if (file.getFileName()
-                                        .toString()
-                                        .toLowerCase(Locale.ROOT)
-                                        .endsWith(".properties")) {
-                                    manifestsFound.add(file);
+                                if (file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".properties")) {
+                                    try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                                        pluginMetadata.add(parseMetadata(file.toUri(), file.getFileName().toString(), reader));
+                                    } catch (Exception e) {
+                                        Main.logger.error("Skipping invalid plugin manifest {}", file, e);
+                                    }
                                 }
                                 return FileVisitResult.CONTINUE;
                             }
                         });
+                }
             } catch (Exception e) {
                 Main.logger.warn("Could not scan path for RFB plugins: {}", uriToSearch, e);
             }
         }
         Main.logger.info("Successfully scanned {} paths for RFB plugins.", count);
-        return manifestsFound;
+
+        return pluginMetadata;
+    }
+
+    private static RfbPluginMetadata parseMetadata(URI source, String filename, BufferedReader contents) throws IOException {
+        final int dot = filename.lastIndexOf('.');
+        final String id = filename.substring(0, dot);
+        final Properties props = new Properties();
+        props.load(contents);
+        final RfbPluginMetadata meta = new RfbPluginMetadata(source, id, props);
+        return meta;
     }
 
     private static void closeJarFilesystems() {
