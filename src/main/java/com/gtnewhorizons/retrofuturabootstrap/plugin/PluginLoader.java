@@ -4,6 +4,8 @@ import com.gtnewhorizons.retrofuturabootstrap.BuildConfig;
 import com.gtnewhorizons.retrofuturabootstrap.Main;
 import com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPlugin;
 import com.gtnewhorizons.retrofuturabootstrap.api.CompatibilityTransformerPluginMetadata;
+import com.gtnewhorizons.retrofuturabootstrap.api.PluginContext;
+import com.gtnewhorizons.retrofuturabootstrap.api.SimpleClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.versioning.DefaultArtifactVersion;
 import java.io.IOException;
 import java.io.Reader;
@@ -84,6 +86,10 @@ public final class PluginLoader {
                 loadedPluginMetadataById.put(extraId.id(), pluginMeta);
             }
         }
+        loadedPlugins.clear();
+        loadedPluginsById.clear();
+        final PluginContext loadingContext =
+                new PluginContext(loadedPluginMetadata, loadedPlugins, loadedPluginMetadataById, loadedPluginsById);
         for (CompatibilityTransformerPluginMetadata pluginMeta : sorted) {
             final String className = pluginMeta.className();
             try {
@@ -107,6 +113,22 @@ public final class PluginLoader {
                 for (CompatibilityTransformerPluginMetadata.IdAndVersion extraId : pluginMeta.additionalVersions()) {
                     loadedPluginsById.put(extraId.id(), plugin);
                 }
+                plugin.onConstruction(loadingContext);
+
+                final SimpleClassTransformer[] earlyTransformers = plugin.getEarlyTransformers();
+                if (earlyTransformers != null && earlyTransformers.length > 0) {
+                    final List<SimpleClassTransformer> toAdd = Arrays.asList(earlyTransformers);
+                    if (toAdd.stream().anyMatch(Objects::isNull)) {
+                        Main.logger.error(
+                                "RFB plugin {} ({}) provided a null early class transformer.",
+                                pluginMeta.idAndVersion(),
+                                pluginMeta.name());
+                        throw new NullPointerException(
+                                "Null early class transformer returned from RFB plugin " + pluginMeta.idAndVersion());
+                    }
+                    Main.mutateCompatibilityTransformers(list -> list.addAll(toAdd));
+                }
+
             } catch (ReflectiveOperationException e) {
                 Throwable cause = e;
                 if (e instanceof InvocationTargetException) {
@@ -165,7 +187,15 @@ public final class PluginLoader {
 
     private static List<Path> findPluginManifests() {
         final ArrayList<Path> manifestsFound = new ArrayList<>();
-        final HashSet<URL> urlsToSearch = new HashSet<>(Arrays.asList(Main.compatLoader.getURLs()));
+        final URL[] earlyCp = Main.compatLoader.getURLs();
+        final HashSet<URI> urisToSearch = new HashSet<>(earlyCp.length);
+        for (URL entry : earlyCp) {
+            try {
+                urisToSearch.add(entry.toURI());
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+        }
         final Path modsDir = Main.initialGameDir.toPath().resolve("mods");
         if (Files.isDirectory(modsDir)) {
             try {
@@ -183,7 +213,7 @@ public final class PluginLoader {
                                         .toString()
                                         .toLowerCase(Locale.ROOT)
                                         .endsWith(".jar")) {
-                                    urlsToSearch.add(file.toUri().toURL());
+                                    urisToSearch.add(file.toUri());
                                 }
                                 return FileVisitResult.CONTINUE;
                             }
@@ -194,15 +224,14 @@ public final class PluginLoader {
         }
         int count = 0;
         // TODO: cache
-        for (URL urlToSearch : urlsToSearch) {
+        for (URI uriToSearch : urisToSearch) {
             try {
                 final boolean isJar =
-                        urlToSearch.getPath().toLowerCase(Locale.ROOT).endsWith(".jar");
+                        uriToSearch.getPath().toLowerCase(Locale.ROOT).endsWith(".jar");
                 if (isJar) {
-                    urlToSearch = new URL("jar:" + urlToSearch + "!/");
+                    uriToSearch = new URI("jar:" + uriToSearch + "!/");
                 }
                 count++;
-                final URI uriToSearch = urlToSearch.toURI();
                 if (isJar) {
                     try {
                         jarFilesystems.add(
@@ -239,7 +268,7 @@ public final class PluginLoader {
                             }
                         });
             } catch (Exception e) {
-                Main.logger.warn("Could not scan path for RFB plugins: {}", urlToSearch, e);
+                Main.logger.warn("Could not scan path for RFB plugins: {}", uriToSearch, e);
             }
         }
         Main.logger.info("Successfully scanned {} paths for RFB plugins.", count);
