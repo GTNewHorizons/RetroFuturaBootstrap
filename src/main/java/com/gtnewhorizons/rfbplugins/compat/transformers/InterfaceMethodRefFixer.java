@@ -1,5 +1,6 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.ClassFileUtils;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
@@ -37,11 +38,6 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
         return "interface-method-ref-fixer";
     }
 
-    // Read unsigned byte as an int helper.
-    private static int nth(byte[] arr, int i) {
-        return ((int) arr[i]) & 0xff;
-    }
-
     @Override
     public boolean shouldTransformClass(
             @NotNull ExtensibleClassLoader classLoader,
@@ -55,20 +51,14 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
         if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
             return false;
         }
-        final int magic = (nth(classBytes, 0) << 24)
-                | (nth(classBytes, 1) << 16)
-                | (nth(classBytes, 2) << 8)
-                | (nth(classBytes, 3));
-        if (magic != 0xCAFEBABE) {
+
+        if (ClassFileUtils.isValidClass(classBytes, 0)) {
             ModernJavaCompatibilityPlugin.log.warn(
-                    "Illegal class header 0x{} found in {}, skipping InterfaceMethodRef fixing",
-                    Integer.toHexString(magic),
-                    className);
+                    "Invalid class {} found, skipping InterfaceMethodRef fixing", className);
             return false;
         }
-        final int versionMajor = (nth(classBytes, 6) << 8) | nth(classBytes, 7);
         // Assume classes for java 9+ were not plagued by the asm 5.0 interfacemethodref bug.
-        return versionMajor < Opcodes.V9;
+        return ClassFileUtils.majorVersion(classBytes, 0) < Opcodes.V9;
     }
 
     @Override
