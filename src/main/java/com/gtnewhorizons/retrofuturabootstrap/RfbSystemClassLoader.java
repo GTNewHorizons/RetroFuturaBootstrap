@@ -15,7 +15,9 @@ import java.net.URLClassLoader;
 import java.net.URLConnection;
 import java.security.CodeSigner;
 import java.security.CodeSource;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -100,7 +102,20 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
 
     public static URL[] getUrlClasspathEntries(ClassLoader appClassLoader) {
         if (appClassLoader instanceof URLClassLoader) {
-            return ((URLClassLoader) appClassLoader).getURLs();
+            final List<URL> appUrls = Arrays.asList(((URLClassLoader) appClassLoader).getURLs());
+            Collections.reverse(appUrls);
+            final ArrayList<URL> urlSet = new ArrayList<>(appUrls);
+            for (ClassLoader parent = appClassLoader.getParent(); parent != null; parent = parent.getParent()) {
+                if (parent instanceof URLClassLoader) {
+                    final List<URL> parentUrls = Arrays.asList(((URLClassLoader) parent).getURLs());
+                    Collections.reverse(parentUrls);
+                    urlSet.addAll(parentUrls);
+                }
+            }
+            // [3 2 1] [6 5 4] -> [4 5 6] [1 2 3] - reverse the order of loaders, while keeping the order inside each
+            // loader
+            Collections.reverse(urlSet);
+            return urlSet.toArray(new URL[0]);
         }
         return Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
                 .map(path -> {
@@ -128,7 +143,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         return null;
     }
 
-    private final ThreadLocal<HashSet<String>> isDelegatingToChild = ThreadLocal.withInitial(HashSet::new);
+    private final ThreadLocal<HashSet<String>> isDelegatingToChild = new ThreadLocal<>();
     /**
      * Find/load a class by name
      */
@@ -139,7 +154,11 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
                 return parent.loadClass(name);
             }
         }
-        final HashSet<String> isDelegatingToChild = this.isDelegatingToChild.get();
+        HashSet<String> isDelegatingToChild = this.isDelegatingToChild.get();
+        if (isDelegatingToChild == null) {
+            isDelegatingToChild = new HashSet<>();
+            this.isDelegatingToChild.set(isDelegatingToChild);
+        }
         if (isDelegatingToChild.contains(name)) {
             throw new ClassNotFoundException(name);
         }
@@ -322,6 +341,13 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
             final URL platformUrl = platformLoader.getResource(classPath);
             if (platformUrl != null) {
                 conn = platformUrl.openConnection();
+            }
+        }
+        if (conn == null && false) {
+            // Try parent loader
+            final URL parentUrl = parent.getResource(classPath);
+            if (parentUrl != null) {
+                conn = parentUrl.openConnection();
             }
         }
         if (conn == null) {
