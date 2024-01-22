@@ -239,11 +239,11 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         final URLConnection connection = findCodeSourceConnectionFor(classPath);
         final Package pkg;
         final CodeSource codeSource;
+        Manifest manifest = null;
         if (!packageName.isEmpty()) {
             if (!untransformedName.startsWith("net.minecraft") && connection instanceof JarURLConnection) {
                 final JarURLConnection jarConnection = (JarURLConnection) connection;
                 final URL packageSourceUrl = jarConnection.getJarFileURL();
-                Manifest manifest = null;
                 CodeSigner[] codeSigners = null;
                 try {
                     manifest = jarConnection.getManifest();
@@ -294,7 +294,8 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                     final RfbClassTransformer.Context context = runTransformers
                             ? RfbClassTransformer.Context.LCL_WITH_TRANSFORMS
                             : RfbClassTransformer.Context.LCL_NO_TRANSFORMS;
-                    classBytes = runRfbTransformers(Main.getRfbTransformers(), context, transformedName, classBytes);
+                    classBytes = runRfbTransformers(
+                            Main.getRfbTransformers(), context, manifest, transformedName, classBytes);
                 } catch (Throwable t) {
                     ClassNotFoundException err =
                             new ClassNotFoundException("Exception caught while transforming class " + name, t);

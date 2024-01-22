@@ -1,5 +1,6 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
+import java.util.jar.Manifest;
 import org.intellij.lang.annotations.Pattern;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -57,6 +58,7 @@ public interface RfbClassTransformer {
      * A fast scanning function that is used to determine if class transformations should be skipped altogether (if all transformers return false).
      * @param classLoader The class loader asking for the transformation.
      * @param context The context in which the class is being loaded.
+     * @param manifest Manifest of the JAR from which the package of this class came, or null if not present.
      * @param className The name of the transformed class (in the dot-separated format).
      * @param classBytes The bytes of the class file to do lookups on, do not modify.
      * @return true if the class will be transformed by this class transformer.
@@ -64,6 +66,7 @@ public interface RfbClassTransformer {
     boolean shouldTransformClass(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull Context context,
+            @Nullable Manifest manifest,
             @NotNull String className,
             byte @Nullable [] classBytes);
 
@@ -71,12 +74,14 @@ public interface RfbClassTransformer {
      * (Optionally) transform a given class. No ClassReader flags are used for maximum efficiency, so stack frames are not expanded.
      * @param classLoader The class loader asking for the transformation.
      * @param context The context in which the class is being loaded.
+     * @param manifest Manifest of the JAR from which the package of this class came, or null if not present.
      * @param className The name of the transformed class (in the dot-separated format).
      * @param classNode The handle to the ASM-parsed class to modify, and metadata used for class writing.
      */
     void transformClass(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull Context context,
+            @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode);
 }

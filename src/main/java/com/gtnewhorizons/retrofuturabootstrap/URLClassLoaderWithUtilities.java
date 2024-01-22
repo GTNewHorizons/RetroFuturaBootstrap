@@ -7,6 +7,7 @@ import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformerHandle;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
 import java.util.Collection;
+import java.util.jar.Manifest;
 
 /**
  * Non-Java-version-specific extensions to {@link URLClassLoaderBase}
@@ -35,6 +36,7 @@ public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
     public byte[] runRfbTransformers(
             final Collection<RfbClassTransformerHandle> rfbTransformers,
             final RfbClassTransformer.Context context,
+            final Manifest manifest,
             final String className,
             byte[] basicClass) {
         if (rfbTransformers.isEmpty()) {
@@ -52,8 +54,8 @@ public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
             }
             final RfbClassTransformer xformer = handle.transformer();
             try {
-                if (xformer.shouldTransformClass(self, context, className, basicClass)) {
-                    xformer.transformClass(self, context, className, nodeHandle);
+                if (xformer.shouldTransformClass(self, context, manifest, className, basicClass)) {
+                    xformer.transformClass(self, context, manifest, className, nodeHandle);
 
                     if (Main.cfgDumpLoadedClassesPerTransformer) {
                         final byte[] newBytes = nodeHandle.computeBytes();

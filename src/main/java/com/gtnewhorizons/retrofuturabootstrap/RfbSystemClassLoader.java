@@ -189,11 +189,11 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         final URLConnection connection = findCodeSourceConnectionFor(classPath);
         final Package pkg;
         final CodeSource codeSource;
+        Manifest manifest = null;
         if (!packageName.isEmpty()) {
             if (!name.startsWith("net.minecraft") && connection instanceof JarURLConnection) {
                 final JarURLConnection jarConnection = (JarURLConnection) connection;
                 final URL codeSourceUrl = jarConnection.getJarFileURL();
-                Manifest manifest = null;
                 CodeSigner[] codeSigners = null;
                 try {
                     manifest = jarConnection.getManifest();
@@ -223,8 +223,8 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
             if (Main.cfgDumpLoadedClassesPerTransformer && classBytes != null) {
                 Main.dumpClass(this.getClassLoaderName(), name + "_000_pretransform", classBytes);
             }
-            classBytes =
-                    runRfbTransformers(Main.getRfbTransformers(), RfbClassTransformer.Context.SYSTEM, name, classBytes);
+            classBytes = runRfbTransformers(
+                    Main.getRfbTransformers(), RfbClassTransformer.Context.SYSTEM, manifest, name, classBytes);
         } catch (Throwable t) {
             ClassNotFoundException err =
                     new ClassNotFoundException("Exception caught while transforming class " + name, t);
