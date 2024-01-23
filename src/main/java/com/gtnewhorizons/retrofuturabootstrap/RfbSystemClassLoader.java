@@ -71,9 +71,9 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
                 "jdk.internal.",
                 "sun.",
                 "org.apache.logging.",
+                "org.objectweb.asm.",
                 "LZMA.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
-        childDelegations.add("org.objectweb.asm.");
     }
 
     /** Invoked by Java itself */

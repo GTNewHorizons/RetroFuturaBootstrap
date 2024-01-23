@@ -69,15 +69,20 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
+        if (node == null) {
+            return;
+        }
         final boolean iAmAnInterface = ((node.access & Opcodes.ACC_INTERFACE) != 0);
         final String internalClassName = node.name;
-        if (node.methods != null) {
-            for (MethodNode method : node.methods) {
-                if (method.instructions != null) {
-                    for (AbstractInsnNode insn : method.instructions) {
-                        validateInstruction(classLoader, internalClassName, iAmAnInterface, insn);
-                    }
-                }
+        if (node.methods == null) {
+            return;
+        }
+        for (MethodNode method : node.methods) {
+            if (method.instructions == null) {
+                continue;
+            }
+            for (AbstractInsnNode insn : method.instructions) {
+                validateInstruction(classLoader, internalClassName, iAmAnInterface, insn);
             }
         }
     }
@@ -107,7 +112,7 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
         if (!handle.isInterface()) {
             final boolean fixSelfReference = handle.getOwner().equals(internalClassName) && iAmAnInterface;
             boolean fixJavaReference = false;
-            if (!fixSelfReference) {
+            if (!fixSelfReference && handle.getOwner().startsWith("java/")) {
                 final String regularName = handle.getOwner().replace('/', '.');
                 try {
                     final Class<?> javaClass = Class.forName(regularName, false, classLoader.asURLClassLoader());

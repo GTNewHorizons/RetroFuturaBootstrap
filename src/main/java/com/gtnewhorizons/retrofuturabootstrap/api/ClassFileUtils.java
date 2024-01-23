@@ -45,4 +45,31 @@ public final class ClassFileUtils {
     public static int majorVersion(byte @NotNull [] classBytes, int offset) {
         return (nth(classBytes, 6) << 8) | nth(classBytes, 7);
     }
+
+    /**
+     * Searches for a sub"string" (byte array) in a longer byte array. Not efficient for long search strings.
+     * @param classBytes The long byte string to search in.
+     * @param substring The short substring to search for.
+     * @return If the substring was found somewhere in the long string.
+     */
+    public static boolean hasSubstring(final byte @Nullable [] classBytes, final byte @NotNull [] substring) {
+        if (classBytes == null) {
+            return false;
+        }
+        final int classLen = classBytes.length;
+        final int subLen = substring.length;
+        if (classLen < subLen) {
+            return false;
+        }
+        outer:
+        for (int startPos = 0; startPos + subLen - 1 < classLen; startPos++) {
+            for (int i = 0; i < subLen; i++) {
+                if (classBytes[startPos + i] != substring[i]) {
+                    continue outer;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
 }

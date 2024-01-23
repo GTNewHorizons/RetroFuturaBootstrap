@@ -136,12 +136,12 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 "sun.",
                 "org.lwjgl.",
                 "org.apache.logging.",
+                "org.objectweb.asm.",
                 "net.minecraft.launchwrapper.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
         transformerExceptions.addAll(Arrays.asList(
                 "javax.",
                 "argo.",
-                "org.objectweb.asm.",
                 "com.google.common.",
                 "org.bouncycastle.",
                 "net.minecraft.launchwrapper.injector.",

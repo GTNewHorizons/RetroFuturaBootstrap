@@ -97,10 +97,6 @@ public class Launch {
         classLoader = lcl;
         Main.launchLoader = lcl;
         Thread.currentThread().setContextClassLoader(lcl);
-        if (Class.forName("org.objectweb.asm.ClassWriter", true, lcl).getClassLoader() != lcl) {
-            throw new IllegalStateException(
-                    "ASM ClassWriter must load using LaunchClassLoader to avoid further errors.");
-        }
     }
 
     /**
