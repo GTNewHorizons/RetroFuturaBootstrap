@@ -12,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class RfbClassTransformerHandle {
     private final @NotNull String id;
+    private final @NotNull String[] additionalIds;
     private final @NotNull RfbPluginMetadata pluginMetadata;
     private final @NotNull RfbPlugin plugin;
     private final @NotNull RfbClassTransformer transformer;
@@ -32,6 +33,11 @@ public final class RfbClassTransformerHandle {
             throw new RuntimeException("Illegal transfomer ID " + xId + " in RFB plugin " + pluginMetadata.id());
         }
         this.id = pluginMetadata().id() + ":" + transformer.id();
+        final RfbPluginMetadata.IdAndVersion[] additionalPluginIds = pluginMetadata.additionalVersions();
+        this.additionalIds = new String[additionalPluginIds.length];
+        for (int i = 0; i < additionalPluginIds.length; i++) {
+            this.additionalIds[i] = additionalPluginIds[i].id() + ":" + transformer.id();
+        }
         // Deduplicate exclusions for faster lookup performance later
         final Set<String> allExclusions = new TreeSet<>();
         allExclusions.add(plugin.getClass().getPackage().getName() + ".");
@@ -63,6 +69,13 @@ public final class RfbClassTransformerHandle {
      */
     public @NotNull String id() {
         return id;
+    }
+
+    /**
+     * @return Additional altplugin:transformer identifiers, one for each alternative ID of the plugin.
+     */
+    public @NotNull String @NotNull [] additionalIds() {
+        return additionalIds;
     }
 
     /**

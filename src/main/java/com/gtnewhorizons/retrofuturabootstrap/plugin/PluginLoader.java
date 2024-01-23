@@ -209,7 +209,11 @@ public final class PluginLoader {
                 final Map<String, Integer> idLookup = new HashMap<>();
                 for (int i = 0; i < newTransformers.size(); i++) {
                     edges.add(new ArrayList<>(0));
-                    idLookup.put(newTransformers.get(i).id(), i);
+                    final RfbClassTransformerHandle newTransformer = newTransformers.get(i);
+                    idLookup.put(newTransformer.id(), i);
+                    for (String additionalId : newTransformer.additionalIds()) {
+                        idLookup.put(additionalId, i);
+                    }
                 }
                 for (int i = 0; i < newTransformers.size(); i++) {
                     final RfbClassTransformerHandle handle = newTransformers.get(i);
