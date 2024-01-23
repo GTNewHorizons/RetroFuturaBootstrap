@@ -52,7 +52,7 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
             return false;
         }
 
-        if (ClassFileUtils.isValidClass(classBytes, 0)) {
+        if (!ClassFileUtils.isValidClass(classBytes, 0)) {
             ModernJavaCompatibilityPlugin.log.warn(
                     "Invalid class {} found, skipping InterfaceMethodRef fixing", className);
             return false;
