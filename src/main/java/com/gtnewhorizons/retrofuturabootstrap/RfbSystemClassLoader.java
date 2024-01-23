@@ -191,7 +191,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         final CodeSource codeSource;
         Manifest manifest = null;
         if (!packageName.isEmpty()) {
-            if (!name.startsWith("net.minecraft") && connection instanceof JarURLConnection) {
+            if (!name.startsWith("net.minecraft.") && connection instanceof JarURLConnection) {
                 final JarURLConnection jarConnection = (JarURLConnection) connection;
                 final URL codeSourceUrl = jarConnection.getJarFileURL();
                 CodeSigner[] codeSigners = null;

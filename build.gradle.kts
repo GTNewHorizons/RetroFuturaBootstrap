@@ -41,7 +41,7 @@ dependencies {
   testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
-  compileOnly("org.jetbrains:annotations:24.1.0")
+  compileOnlyApi("org.jetbrains:annotations:24.1.0")
   api("net.sf.jopt-simple:jopt-simple:4.5")
   api("org.ow2.asm:asm-commons:${asmVersion}")
   api("org.ow2.asm:asm-tree:${asmVersion}")

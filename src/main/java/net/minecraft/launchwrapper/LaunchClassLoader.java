@@ -241,7 +241,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         final CodeSource codeSource;
         Manifest manifest = null;
         if (!packageName.isEmpty()) {
-            if (!untransformedName.startsWith("net.minecraft") && connection instanceof JarURLConnection) {
+            if (!untransformedName.startsWith("net.minecraft.") && connection instanceof JarURLConnection) {
                 final JarURLConnection jarConnection = (JarURLConnection) connection;
                 final URL packageSourceUrl = jarConnection.getJarFileURL();
                 CodeSigner[] codeSigners = null;

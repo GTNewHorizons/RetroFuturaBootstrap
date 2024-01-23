@@ -64,13 +64,15 @@ public class URLClassLoaderBase extends URLClassLoader {
             pkg = getClass().getClassLoader().getDefinedPackage(packageName);
         }
         if (pkg != null) {
-            if (pkg.isSealed() && !pkg.isSealed(codeSourceURL)) {
-                throw new SecurityException("Sealing violation in package " + packageName);
+            if (pkg.isSealed()) {
+                if (!pkg.isSealed(codeSourceURL)) {
+                    throw new SecurityException("Sealing violation in package " + packageName);
+                }
             } else if (manifest != null && isSealed(packageName, manifest)) {
                 throw new SecurityException("Sealing violation in already loaded package " + packageName);
             }
         } else {
-            return definePackage(packageName, new Manifest(), codeSourceURL);
+            return definePackage(packageName, manifest != null ? manifest : new Manifest(), codeSourceURL);
         }
         return pkg;
     }

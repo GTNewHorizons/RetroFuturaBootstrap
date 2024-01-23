@@ -11,6 +11,7 @@ import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.versioning.DefaultArtifactVersion;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -310,7 +311,10 @@ public final class PluginLoader {
                 throw new RuntimeException(e);
             }
         }
-        final Path modsDir = Main.initialGameDir.toPath().resolve("mods");
+        final File initialGameDir = Main.initialGameDir;
+        final Path gamePath =
+                initialGameDir != null ? initialGameDir.toPath() : Paths.get("").toAbsolutePath();
+        final Path modsDir = gamePath.resolve("mods");
         if (Files.isDirectory(modsDir)) {
             try {
                 Files.walkFileTree(
