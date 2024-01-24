@@ -20,6 +20,9 @@ public final class RfbApiImpl implements RfbApi {
 
     @Override
     public @NotNull RfbSystemClassLoader compatClassLoader() {
+        if (Main.compatLoader == null) {
+            throw new IllegalStateException();
+        }
         return Main.compatLoader;
     }
 

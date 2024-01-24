@@ -100,7 +100,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         return childLoader;
     }
 
-    public static URL[] getUrlClasspathEntries(ClassLoader appClassLoader) {
+    public static @NotNull URL[] getUrlClasspathEntries(ClassLoader appClassLoader) {
         if (appClassLoader instanceof URLClassLoader) {
             final List<URL> appUrls = Arrays.asList(((URLClassLoader) appClassLoader).getURLs());
             Collections.reverse(appUrls);
@@ -135,10 +135,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
     public Class<?> findCachedClass(final String name) {
         final WeakReference<Class<?>> cached = cachedClasses.get(name);
         if (cached != null) {
-            final Class<?> cachedStrong = cached.get();
-            if (cachedStrong != null) {
-                return cachedStrong;
-            }
+            return cached.get();
         }
         return null;
     }
@@ -341,13 +338,6 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
             final URL platformUrl = platformLoader.getResource(classPath);
             if (platformUrl != null) {
                 conn = platformUrl.openConnection();
-            }
-        }
-        if (conn == null && false) {
-            // Try parent loader
-            final URL parentUrl = parent.getResource(classPath);
-            if (parentUrl != null) {
-                conn = parentUrl.openConnection();
             }
         }
         if (conn == null) {

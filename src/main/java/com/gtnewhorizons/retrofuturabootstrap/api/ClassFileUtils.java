@@ -31,10 +31,7 @@ public final class ClassFileUtils {
                 | (nth(classBytes, 1) << 16)
                 | (nth(classBytes, 2) << 8)
                 | (nth(classBytes, 3));
-        if (magic != 0xCAFEBABE) {
-            return false;
-        }
-        return true;
+        return magic == 0xCAFEBABE;
     }
 
     /**

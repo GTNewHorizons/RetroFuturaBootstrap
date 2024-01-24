@@ -161,7 +161,7 @@ public class Launch {
         final List<String> remainingArgs = options.valuesOf(aRemainder);
 
         Main.initialGameVersion = version;
-        Main.initialGameDir = gameDir;
+        Main.initialGameDir = gameDir != null ? gameDir : new File(".");
         Main.initialAssetsDir = assetsDir;
 
         if ((Main.cfgDumpLoadedClasses || Main.cfgDumpLoadedClassesPerTransformer)

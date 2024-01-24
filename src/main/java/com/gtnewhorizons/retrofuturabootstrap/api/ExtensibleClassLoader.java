@@ -58,5 +58,5 @@ public interface ExtensibleClassLoader {
      * @param name the name of the class
      * @return The loaded class if found, or null if not found
      */
-    public Class<?> findCachedClass(final String name);
+    Class<?> findCachedClass(final String name);
 }

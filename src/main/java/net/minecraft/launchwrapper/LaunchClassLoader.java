@@ -287,6 +287,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             for (String exclusion : parentRfb.childDelegations) {
                 if (transformedName.startsWith(exclusion)) {
                     doCompatTransforms = false;
+                    break;
                 }
             }
             if (doCompatTransforms) {

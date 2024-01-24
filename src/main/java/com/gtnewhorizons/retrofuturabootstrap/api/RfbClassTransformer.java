@@ -17,7 +17,7 @@ public interface RfbClassTransformer {
         /** The class would be loaded by LaunchClassLoader, but is excluded from transformation */
         LCL_NO_TRANSFORMS,
         /** The class would be loaded by LaunchClassLoader and transformed */
-        LCL_WITH_TRANSFORMS;
+        LCL_WITH_TRANSFORMS
     }
 
     /**

@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -85,16 +84,12 @@ public class Main {
     public static final int JAVA_MAJOR_VERSION = URLClassLoaderBase.getJavaMajorVersion();
 
     private static final @Nullable ExecutorService classDumpingService = cfgDumpClassesAsynchronously
-            ? Executors.newFixedThreadPool(
-                    Math.min(4, Runtime.getRuntime().availableProcessors()), new ThreadFactory() {
-                        @Override
-                        public Thread newThread(Runnable r) {
-                            final Thread t = new Thread(r);
-                            t.setName("RFB Class Dumping Executor");
-                            t.setDaemon(true);
-                            return t;
-                        }
-                    })
+            ? Executors.newFixedThreadPool(Math.min(4, Runtime.getRuntime().availableProcessors()), runnable -> {
+                final Thread t = new Thread(runnable);
+                t.setName("RFB Class Dumping Executor");
+                t.setDaemon(true);
+                return t;
+            })
             : null;
 
     /** A utility to convert the java.class.path system property to an array of URLs */
@@ -179,7 +174,7 @@ public class Main {
                     : dumpRoot.resolve(classLoaderName);
             final String internalName = className.replace('.', '/');
             final Path targetPath = clRoot.resolve(internalName + ".class");
-            if (cfgDumpClassesAsynchronously) {
+            if (cfgDumpClassesAsynchronously && classDumpingService != null) {
                 classDumpingService.submit(() -> {
                     try {
                         Files.createDirectories(targetPath.getParent());

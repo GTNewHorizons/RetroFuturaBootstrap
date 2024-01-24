@@ -312,8 +312,9 @@ public final class PluginLoader {
             }
         }
         final File initialGameDir = Main.initialGameDir;
-        final Path gamePath =
-                initialGameDir != null ? initialGameDir.toPath() : Paths.get("").toAbsolutePath();
+        final Path gamePath = initialGameDir != null
+                ? initialGameDir.toPath()
+                : Paths.get(".").toAbsolutePath();
         final Path modsDir = gamePath.resolve("mods");
         if (Files.isDirectory(modsDir)) {
             try {
@@ -426,8 +427,7 @@ public final class PluginLoader {
         final String id = filename.substring(0, dot);
         final Properties props = new Properties();
         props.load(contents);
-        final RfbPluginMetadata meta = new RfbPluginMetadata(source, id, props);
-        return meta;
+        return new RfbPluginMetadata(source, id, props);
     }
 
     private static void closeJarFilesystems() {
