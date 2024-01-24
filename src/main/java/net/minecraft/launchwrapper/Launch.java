@@ -12,6 +12,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -165,7 +166,8 @@ public class Launch {
 
         if ((Main.cfgDumpLoadedClasses || Main.cfgDumpLoadedClassesPerTransformer)
                 && Main.classDumpDirectory.get() == null) {
-            final Path gamePath = gameDir.toPath();
+            final Path gamePath =
+                    gameDir != null ? gameDir.toPath() : Paths.get("").toAbsolutePath();
             final FileSystem fs = gamePath.getFileSystem();
             Path dumpPath = gamePath.resolve(Main.RFB_CLASS_DUMP_PREFIX);
             try {
