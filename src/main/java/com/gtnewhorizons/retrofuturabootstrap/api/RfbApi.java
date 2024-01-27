@@ -1,6 +1,7 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
 import com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader;
+import java.nio.file.Path;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -56,5 +57,18 @@ public interface RfbApi {
     /**
      * @return Java runtime version, for example 17.0.10 or 1.8.0.402-b06 (_ replaced with ., anything after + stripped)
      */
+    @NotNull
     String javaVersion();
+
+    /**
+     * @return The game directory (parent of mods/, config/, saves/, etc.)
+     */
+    @NotNull
+    Path gameDirectory();
+
+    /**
+     * @return The assets root directory
+     */
+    @NotNull
+    Path assetsDirectory();
 }

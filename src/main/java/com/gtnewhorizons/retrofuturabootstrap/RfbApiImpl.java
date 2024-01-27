@@ -4,6 +4,8 @@ import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbApi;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginHandle;
 import com.gtnewhorizons.retrofuturabootstrap.plugin.PluginLoader;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
@@ -56,7 +58,17 @@ public final class RfbApiImpl implements RfbApi {
     }
 
     @Override
-    public String javaVersion() {
+    public @NotNull String javaVersion() {
         return Main.JAVA_VERSION;
+    }
+
+    @Override
+    public @NotNull Path gameDirectory() {
+        return Main.initialGameDir == null ? Paths.get(".") : Main.initialGameDir.toPath();
+    }
+
+    @Override
+    public @NotNull Path assetsDirectory() {
+        return Main.initialAssetsDir == null ? Paths.get(".") : Main.initialAssetsDir.toPath();
     }
 }
