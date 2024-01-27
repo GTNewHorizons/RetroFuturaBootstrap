@@ -1,6 +1,8 @@
 package com.gtnewhorizons.retrofuturabootstrap;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
+import com.gtnewhorizons.retrofuturabootstrap.api.FastClassAccessor;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import java.io.Closeable;
 import java.io.File;
@@ -26,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A simpler, non-renaming version of {@link net.minecraft.launchwrapper.LaunchClassLoader} used for loading all coremod classes.
@@ -136,6 +139,34 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         final WeakReference<Class<?>> cached = cachedClasses.get(name);
         if (cached != null) {
             return cached.get();
+        }
+        return null;
+    }
+
+    @Override
+    public @Nullable FastClassAccessor findClassMetadata(@NotNull String name) {
+        for (final String exception : classLoaderExceptions) {
+            if (name.startsWith(exception)) {
+                try {
+                    final Class<?> loaded = parent.loadClass(name);
+                    return FastClassAccessor.ofLoaded(loaded);
+                } catch (ClassNotFoundException e) {
+                    // no-op
+                }
+                return null;
+            }
+        }
+        final Class<?> cachedClass = findCachedClass(name);
+        if (cachedClass != null) {
+            return FastClassAccessor.ofLoaded(cachedClass);
+        }
+        try {
+            final byte[] classBytes = getClassBytes(name);
+            if (classBytes != null) {
+                return new ClassHeaderMetadata(classBytes);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         return null;
     }

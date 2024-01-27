@@ -3,7 +3,9 @@ package net.minecraft.launchwrapper;
 import com.gtnewhorizons.retrofuturabootstrap.Main;
 import com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.URLClassLoaderWithUtilities;
+import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
+import com.gtnewhorizons.retrofuturabootstrap.api.FastClassAccessor;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import java.io.Closeable;
 import java.io.File;
@@ -26,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class LaunchClassLoader extends URLClassLoaderWithUtilities implements ExtensibleClassLoader {
 
@@ -483,6 +486,43 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     /** Adds a new entry to the end of the transformer exclusions list */
     public void addTransformerExclusion(String toExclude) {
         transformerExceptions.add(toExclude);
+    }
+
+    @Override
+    public @Nullable FastClassAccessor findClassMetadata(@NotNull String name) {
+        FastClassAccessor acc = findClassMetadataImpl(name);
+        if (acc == null && renameTransformer != null) {
+            name = untransformName(name);
+            acc = findClassMetadataImpl(name);
+        }
+        return acc;
+    }
+
+    public @Nullable FastClassAccessor findClassMetadataImpl(@NotNull String name) {
+        for (final String exception : classLoaderExceptions) {
+            if (name.startsWith(exception)) {
+                try {
+                    final Class<?> loaded = parent.loadClass(name);
+                    return FastClassAccessor.ofLoaded(loaded);
+                } catch (ClassNotFoundException e) {
+                    // no-op
+                }
+                return null;
+            }
+        }
+        final Class<?> cachedClass = findCachedClass(name);
+        if (cachedClass != null) {
+            return FastClassAccessor.ofLoaded(cachedClass);
+        }
+        try {
+            final byte[] classBytes = getClassBytes(name);
+            if (classBytes != null) {
+                return new ClassHeaderMetadata(classBytes);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return null;
     }
 
     /**

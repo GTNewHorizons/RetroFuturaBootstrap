@@ -1,8 +1,8 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
-import com.gtnewhorizons.retrofuturabootstrap.api.ClassFileUtils;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
+import com.gtnewhorizons.retrofuturabootstrap.api.FastClassAccessor;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.rfbplugins.compat.ModernJavaCompatibilityPlugin;
 import java.util.jar.Attributes;
@@ -44,21 +44,19 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
             @NotNull Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
-            byte @Nullable [] classBytes) {
-        if (classBytes == null || classBytes.length < 16) {
+            @NotNull ClassNodeHandle classNode) {
+        if (!classNode.isPresent()) {
+            return false;
+        }
+        if (classNode.getOriginalMetadata() == null) {
             return false;
         }
         if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
             return false;
         }
 
-        if (!ClassFileUtils.isValidClass(classBytes, 0)) {
-            ModernJavaCompatibilityPlugin.log.warn(
-                    "Invalid class {} found, skipping InterfaceMethodRef fixing", className);
-            return false;
-        }
         // Assume classes for java 9+ were not plagued by the asm 5.0 interfacemethodref bug.
-        return ClassFileUtils.majorVersion(classBytes, 0) < Opcodes.V9;
+        return classNode.getOriginalMetadata().majorVersion < Opcodes.V9;
     }
 
     @Override
@@ -112,17 +110,11 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
         if (!handle.isInterface()) {
             final boolean fixSelfReference = handle.getOwner().equals(internalClassName) && iAmAnInterface;
             boolean fixJavaReference = false;
-            if (!fixSelfReference && handle.getOwner().startsWith("java/")) {
+            if (!fixSelfReference) {
                 final String regularName = handle.getOwner().replace('/', '.');
-                try {
-                    final Class<?> javaClass = Class.forName(regularName, false, classLoader.asURLClassLoader());
-                    if (javaClass.isInterface()) {
-                        fixJavaReference = true;
-                    }
-                } catch (ClassNotFoundException cnfe) {
-                    // no-op
-                    ModernJavaCompatibilityPlugin.log.warn(
-                            "Method handle to a non-existing class {} found.", regularName, cnfe);
+                final FastClassAccessor javaClass = classLoader.findClassMetadata(regularName);
+                if (javaClass != null && javaClass.isInterface()) {
+                    fixJavaReference = true;
                 }
             }
             if (fixSelfReference || fixJavaReference) {

@@ -60,7 +60,7 @@ public interface RfbClassTransformer {
      * @param context The context in which the class is being loaded.
      * @param manifest Manifest of the JAR from which the package of this class came, or null if not present.
      * @param className The name of the transformed class (in the dot-separated format).
-     * @param classBytes The bytes of the class file to do lookups on, do not modify.
+     * @param classNode The handle to the class data and parsed metadata, try to avoid triggering the lazy ASM parse if possible for performance.
      * @return true if the class will be transformed by this class transformer.
      */
     boolean shouldTransformClass(
@@ -68,7 +68,7 @@ public interface RfbClassTransformer {
             @NotNull Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
-            byte @Nullable [] classBytes);
+            @NotNull ClassNodeHandle classNode);
 
     /**
      * (Optionally) transform a given class. No ClassReader flags are used for maximum efficiency, so stack frames are not expanded.
@@ -76,7 +76,7 @@ public interface RfbClassTransformer {
      * @param context The context in which the class is being loaded.
      * @param manifest Manifest of the JAR from which the package of this class came, or null if not present.
      * @param className The name of the transformed class (in the dot-separated format).
-     * @param classNode The handle to the ASM-parsed class to modify, and metadata used for class writing.
+     * @param classNode The handle to the lazily ASM-parsed class to modify, and metadata used for class writing.
      */
     void transformClass(
             @NotNull ExtensibleClassLoader classLoader,

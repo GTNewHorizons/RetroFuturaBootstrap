@@ -1,11 +1,10 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
 import com.gtnewhorizons.retrofuturabootstrap.SafeAsmClassWriter;
-import com.gtnewhorizons.retrofuturabootstrap.api.ClassFileUtils;
+import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
-import com.gtnewhorizons.rfbplugins.compat.ModernJavaCompatibilityPlugin;
 import java.nio.charset.StandardCharsets;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
@@ -42,20 +41,15 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
-            byte @Nullable [] classBytes) {
-        if (classBytes == null || classBytes.length < 16) {
+            @NotNull ClassNodeHandle classNode) {
+        if (!classNode.isPresent()) {
             return false;
         }
         if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
             return false;
         }
 
-        if (!ClassFileUtils.isValidClass(classBytes, 0)) {
-            ModernJavaCompatibilityPlugin.log.warn("Invalid class {} found, skipping ClassWriter fixing", className);
-            return false;
-        }
-
-        return ClassFileUtils.hasSubstring(classBytes, CLASS_WRITER_BYTES);
+        return ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), CLASS_WRITER_BYTES);
     }
 
     @Override

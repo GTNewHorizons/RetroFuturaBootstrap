@@ -59,4 +59,12 @@ public interface ExtensibleClassLoader {
      * @return The loaded class if found, or null if not found
      */
     Class<?> findCachedClass(final String name);
+
+    /**
+     * Finds class metadata for a given class if already loaded, or the parsed classfile header if not yet loaded.
+     * @param name the name of the class
+     * @return The parsed/cached metadata, or null if not found
+     */
+    @Nullable
+    FastClassAccessor findClassMetadata(final @NotNull String name);
 }

@@ -9,25 +9,62 @@ import org.objectweb.asm.tree.ClassNode;
 /** A simple handle to a mutable ClassNode and flags for ClassWriter. */
 public final class ClassNodeHandle {
     private final byte @Nullable [] originalBytes;
+    private final @Nullable ClassHeaderMetadata originalMetadata;
     private final int readerOptions;
     private boolean initialized = false;
     private @Nullable ClassNode node = null;
+    private @Nullable FastClassAccessor accessor = null;
     private int writerFlags = 0;
 
     /** Parse the class data with no reader options (for fastest speed). */
     public ClassNodeHandle(byte @Nullable [] classData) {
-        this.originalBytes = classData;
-        this.readerOptions = 0;
+        this(classData, 0);
     }
 
     /** Parse the class data with custom reader options. */
     public ClassNodeHandle(
             byte @Nullable [] classData, @MagicConstant(flagsFromClass = ClassReader.class) int readerOptions) {
+        @Nullable ClassHeaderMetadata originalMetadata;
         this.originalBytes = classData;
-        this.readerOptions = readerOptions;
+        if (classData == null) {
+            originalMetadata = null;
+        } else {
+            try {
+                originalMetadata = new ClassHeaderMetadata(classData);
+            } catch (Exception e) {
+                originalMetadata = null;
+            }
+        }
+        this.originalMetadata = originalMetadata;
+        this.accessor = originalMetadata;
+        this.readerOptions = 0;
     }
 
-    /** Gets the parsed node of the currently processed class. */
+    /** Gets the original pre-transformer-phase bytes of the class. */
+    public byte @Nullable [] getOriginalBytes() {
+        return originalBytes;
+    }
+
+    /** Gets the original pre-transformer-phase header metadata of the class, or null if invalid/not present. */
+    public @Nullable ClassHeaderMetadata getOriginalMetadata() {
+        return originalMetadata;
+    }
+
+    /** Gets the fast class metadata accessor of the class, that can access the current state of various class attributes without (re)parsing. */
+    public @Nullable FastClassAccessor getFastAccessor() {
+        return accessor;
+    }
+
+    /** If the class currently has any bytes or a node associated with it. */
+    public boolean isPresent() {
+        if (initialized) {
+            return node != null;
+        } else {
+            return originalBytes != null;
+        }
+    }
+
+    /** Gets the parsed node of the currently processed class. This can cause full class parsing! */
     public @Nullable ClassNode getNode() {
         ensureInitialized();
         return node;
@@ -37,6 +74,11 @@ public final class ClassNodeHandle {
     public void setNode(@Nullable ClassNode node) {
         initialized = true;
         this.node = node;
+        if (node == null) {
+            this.accessor = null;
+        } else {
+            this.accessor = FastClassAccessor.ofAsmNode(node);
+        }
     }
 
     /** Computes the byte[] array of the transformed class. Returns the original bytes if {@link ClassNodeHandle#getNode()} was never called. */
@@ -81,9 +123,11 @@ public final class ClassNodeHandle {
         if (!initialized) {
             if (originalBytes == null) {
                 node = null;
+                accessor = null;
             } else {
                 node = new ClassNode();
                 new ClassReader(originalBytes).accept(node, readerOptions);
+                accessor = FastClassAccessor.ofAsmNode(node);
             }
             initialized = true;
         }
