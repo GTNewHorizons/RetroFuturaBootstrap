@@ -36,6 +36,8 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     public static final int BUFFER_SIZE = 1 << 12;
     /** A list keeping track of addURL calls */
     private List<URL> sources;
+    /** A set keeping track of duplicate URL strings to deduplicate the sources array */
+    private final Set<String> rfbSources = new HashSet<>();
     /** A reference to the classloader that loaded this class */
     private ClassLoader parent = getClass().getClassLoader();
     /** RFB: null or RfbSystemClassLoader reference to parent */
@@ -134,6 +136,9 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         super("RFB-Launch", sources, getPlatformClassLoader());
         LogWrapper.configureLogging();
         this.sources = new ArrayList<>(Arrays.asList(sources));
+        for (final URL source : this.sources) {
+            this.rfbSources.add(source.toString());
+        }
         classLoaderExceptions.addAll(Arrays.asList(
                 "java.",
                 "sun.",
@@ -434,7 +439,9 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         if (parent instanceof ExtensibleClassLoader) {
             ((ExtensibleClassLoader) parent).addURL(url);
         }
-        sources.add(url);
+        if (rfbSources.add(url.toString())) {
+            sources.add(url);
+        }
     }
 
     /** Returns the saved classpath list */
