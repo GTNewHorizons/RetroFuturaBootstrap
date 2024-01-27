@@ -75,17 +75,18 @@ public final class PluginLoader {
         loadedPluginMetadata.clear();
         loadedPluginMetadata.addAll(sorted);
         loadedPluginMetadataById.clear();
-        for (RfbPluginMetadata pluginMeta : sorted) {
+        for (final RfbPluginMetadata pluginMeta : sorted) {
             loadedPluginMetadataById.put(pluginMeta.id(), pluginMeta);
             for (RfbPluginMetadata.IdAndVersion extraId : pluginMeta.additionalVersions()) {
                 loadedPluginMetadataById.put(extraId.id(), pluginMeta);
             }
+            Main.addClasspathUrl(pluginMeta.classpathEntry());
         }
         loadedPlugins.clear();
         loadedPluginsById.clear();
         final PluginContext loadingContext =
                 new PluginContext(loadedPluginMetadata, loadedPlugins, loadedPluginMetadataById, loadedPluginsById);
-        for (RfbPluginMetadata pluginMeta : sorted) {
+        for (final RfbPluginMetadata pluginMeta : sorted) {
             final String className = pluginMeta.className();
             try {
                 final Class<?> klass = Class.forName(className, true, Main.compatLoader);
@@ -259,11 +260,13 @@ public final class PluginLoader {
     }
 
     private static final URI myURI;
+    private static final URL myJar;
 
     static {
         try {
             myURI = Objects.requireNonNull(PluginLoader.class.getResource("PluginLoader.class"))
                     .toURI();
+            myJar = PluginLoader.class.getProtectionDomain().getCodeSource().getLocation();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -271,6 +274,7 @@ public final class PluginLoader {
 
     private static RfbPluginMetadata makeJavaMetadata() {
         return new RfbPluginMetadata(
+                myJar,
                 myURI,
                 "java",
                 "Java",
@@ -287,6 +291,7 @@ public final class PluginLoader {
 
     private static RfbPluginMetadata makeRfbMetadata() {
         return new RfbPluginMetadata(
+                myJar,
                 myURI,
                 "rfb",
                 "RetroFuturaBootstrap",
@@ -345,7 +350,7 @@ public final class PluginLoader {
         final List<RfbPluginMetadata> pluginMetadata = new ArrayList<>();
         // TODO: cache
         final String zipPrefix = META_INF + "/" + RFB_PLUGINS_DIR + "/";
-        for (URI uriToSearch : urisToSearch) {
+        for (final URI uriToSearch : urisToSearch) {
             try {
                 final boolean isJar =
                         uriToSearch.getPath().toLowerCase(Locale.ROOT).endsWith(".jar");
@@ -370,7 +375,7 @@ public final class PluginLoader {
                             try (final InputStream is = zip.getInputStream(ze);
                                     final Reader rdr = new InputStreamReader(is, StandardCharsets.UTF_8);
                                     final BufferedReader bufReader = new BufferedReader(rdr)) {
-                                pluginMetadata.add(parseMetadata(uri, filename, bufReader));
+                                pluginMetadata.add(parseMetadata(uriToSearch.toURL(), uri, filename, bufReader));
                             } catch (Exception e) {
                                 Main.logger.error("Skipping invalid plugin manifest {}", uri, e);
                             }
@@ -386,7 +391,7 @@ public final class PluginLoader {
                     Files.walkFileTree(
                             pluginsDir,
                             new HashSet<>(Collections.singletonList(FileVisitOption.FOLLOW_LINKS)),
-                            1,
+                            2,
                             new SimpleFileVisitor<Path>() {
 
                                 @Override
@@ -401,6 +406,7 @@ public final class PluginLoader {
                                         try (BufferedReader reader =
                                                 Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
                                             pluginMetadata.add(parseMetadata(
+                                                    uriToSearch.toURL(),
                                                     file.toUri(),
                                                     file.getFileName().toString(),
                                                     reader));
@@ -421,13 +427,13 @@ public final class PluginLoader {
         return pluginMetadata;
     }
 
-    private static RfbPluginMetadata parseMetadata(URI source, String filename, BufferedReader contents)
-            throws IOException {
+    private static RfbPluginMetadata parseMetadata(
+            URL classpathEntry, URI source, String filename, BufferedReader contents) throws IOException {
         final int dot = filename.lastIndexOf('.');
         final String id = filename.substring(0, dot);
         final Properties props = new Properties();
         props.load(contents);
-        return new RfbPluginMetadata(source, id, props);
+        return new RfbPluginMetadata(classpathEntry, source, id, props);
     }
 
     private static void closeJarFilesystems() {

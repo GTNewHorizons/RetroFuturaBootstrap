@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.gtnewhorizons.retrofuturabootstrap.Main;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.plugin.PluginSorter;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -16,10 +18,24 @@ import org.junit.jupiter.api.Test;
 public class PluginDependencyTest {
 
     static final URI DUMMY_SOURCE = URI.create("file:dummy");
+    static final URL DUMMY_URL;
+
+    static {
+        try {
+            DUMMY_URL = DUMMY_SOURCE.toURL();
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private static RfbPluginMetadata.Builder buildSimple(String id) {
         return new RfbPluginMetadata.Builder(
-                DUMMY_SOURCE, id, id.toUpperCase(Locale.ROOT), "1.0.0", "plugins." + id.toUpperCase(Locale.ROOT));
+                DUMMY_URL,
+                DUMMY_SOURCE,
+                id,
+                id.toUpperCase(Locale.ROOT),
+                "1.0.0",
+                "plugins." + id.toUpperCase(Locale.ROOT));
     }
 
     static final RfbPluginMetadata SIMPLE_A = buildSimple("a").build();

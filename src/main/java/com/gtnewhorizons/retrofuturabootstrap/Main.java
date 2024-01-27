@@ -97,6 +97,16 @@ public class Main {
         return RfbSystemClassLoader.getUrlClasspathEntries(appClassLoader);
     }
 
+    /** Adds a given URL to the classpath of both the compat and launch loaders, if not already added */
+    public static void addClasspathUrl(@NotNull URL url) {
+        if (compatLoader != null) {
+            compatLoader.addURL(url);
+        }
+        if (launchLoader != null) {
+            launchLoader.addURL(url);
+        }
+    }
+
     /**
      * @return An immutable view on RFB transformers.
      */

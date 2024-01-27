@@ -5,6 +5,7 @@ import com.gtnewhorizons.retrofuturabootstrap.versioning.DefaultArtifactVersion;
 import com.gtnewhorizons.retrofuturabootstrap.versioning.InvalidVersionSpecificationException;
 import com.gtnewhorizons.retrofuturabootstrap.versioning.VersionRange;
 import java.net.URI;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
@@ -23,6 +24,7 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
     public static final Comparator<? super RfbPluginMetadata> ID_AND_PIN_COMPARATOR = Comparator.nullsFirst(
             Comparator.comparing(RfbPluginMetadata::pinLast).thenComparing(RfbPluginMetadata::id));
 
+    private final @NotNull URL classpathEntry;
     private final @NotNull URI source;
     private final @NotNull IdAndVersion idAndVersion;
     private final @NotNull String name;
@@ -37,6 +39,7 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
     private @Nullable RfbPlugin instance;
 
     public RfbPluginMetadata(
+            @NotNull URL classpathEntry,
             @NotNull URI source,
             @NotNull String id,
             @NotNull String name,
@@ -49,6 +52,7 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
             String[] loadAfter,
             String[] loadRequires,
             boolean pinLast) {
+        this.classpathEntry = Objects.requireNonNull(classpathEntry);
         this.source = Objects.requireNonNull(source);
         Objects.requireNonNull(id);
         Objects.requireNonNull(version);
@@ -64,7 +68,8 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
         this.pinLast = pinLast;
     }
 
-    public RfbPluginMetadata(@NotNull URI source, @NotNull String id, Properties props) {
+    public RfbPluginMetadata(@NotNull URL classpathEntry, @NotNull URI source, @NotNull String id, Properties props) {
+        this.classpathEntry = classpathEntry;
         this.source = Objects.requireNonNull(source);
         Objects.requireNonNull(id);
 
@@ -174,6 +179,10 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
         } catch (Throwable t) {
             throw new RuntimeException("Error when parsing plugin metadata for plugin " + id, t);
         }
+    }
+
+    public URL classpathEntry() {
+        return classpathEntry;
     }
 
     public URI source() {
@@ -291,6 +300,12 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
     @Override
     public String toString() {
         return "RfbPluginMetadata["
+                + "classpathEntry="
+                + classpathEntry
+                + ", "
+                + "source="
+                + source
+                + ", "
                 + "idAndVersion="
                 + idAndVersion
                 + ", "
@@ -403,6 +418,9 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
     public static class Builder {
 
         @NotNull
+        final URL classpathEntry;
+
+        @NotNull
         final URI source;
 
         @NotNull
@@ -427,11 +445,13 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
         boolean pinLast;
 
         public Builder(
+                @NotNull URL classpathEntry,
                 @NotNull URI source,
                 @NotNull String id,
                 @NotNull String name,
                 @NotNull String version,
                 @NotNull String className) {
+            this.classpathEntry = classpathEntry;
             this.source = source;
             this.id = id;
             this.name = name;
@@ -440,12 +460,13 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
         }
 
         public Builder(
+                @NotNull URL classpathEntry,
                 @NotNull URI source,
                 @NotNull String id,
                 @NotNull String name,
                 @NotNull String version,
                 @NotNull Class<?> klass) {
-            this(source, id, name, version, klass.getName());
+            this(classpathEntry, source, id, name, version, klass.getName());
         }
 
         private static <T> T[] append(final T[] array, final T element) {
@@ -496,6 +517,7 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
 
         public RfbPluginMetadata build() {
             return new RfbPluginMetadata(
+                    classpathEntry,
                     source,
                     id,
                     name,
