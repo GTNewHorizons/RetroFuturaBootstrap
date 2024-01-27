@@ -145,23 +145,32 @@ public class Main {
                                     .getClass()
                                     .getName());
         }
+        if (classDumpingService != null) {
+            Runtime.getRuntime()
+                    .addShutdownHook(new Thread(
+                            () -> {
+                                classDumpingService.shutdown();
+                                if (!classDumpingService.isTerminated()) {
+                                    logger.info("Waiting for final class dumps to finish...");
+                                    try {
+                                        if (!classDumpingService.awaitTermination(10, TimeUnit.SECONDS)) {
+                                            logger.warn("Classes did not finish dumping in 10 seconds, aborting.");
+                                            classDumpingService.shutdownNow();
+                                        }
+                                    } catch (InterruptedException e) {
+                                        logger.warn("Classes did not finish dumping in 10 seconds, aborting.");
+                                        classDumpingService.shutdownNow();
+                                    }
+                                }
+                            },
+                            "RFB ClassDumpingService Shutdown hook"));
+        }
         try {
             Class<?> launchClass = Class.forName("net.minecraft.launchwrapper.Launch", true, compatLoader);
             Method main = launchClass.getMethod("main", String[].class);
             main.invoke(null, (Object) args);
         } catch (InvocationTargetException ite) {
             throw ite.getCause(); // clean up stacktrace
-        } finally {
-            if (classDumpingService != null) {
-                classDumpingService.shutdown();
-                if (!classDumpingService.isTerminated()) {
-                    logger.info("Waiting for final class dumps to finish...");
-                    if (!classDumpingService.awaitTermination(10, TimeUnit.SECONDS)) {
-                        logger.warn("Classes did not finish dumping in 10 seconds, aborting.");
-                        classDumpingService.shutdownNow();
-                    }
-                }
-            }
         }
     }
 
