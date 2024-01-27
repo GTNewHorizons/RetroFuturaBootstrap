@@ -55,6 +55,11 @@ public final class ClassNodeHandle {
         return accessor;
     }
 
+    /** @return If the class was not yet turned into a ClassNode object, and the original bytes still represent the class. */
+    public boolean isOriginal() {
+        return !initialized;
+    }
+
     /** If the class currently has any bytes or a node associated with it. */
     public boolean isPresent() {
         if (initialized) {

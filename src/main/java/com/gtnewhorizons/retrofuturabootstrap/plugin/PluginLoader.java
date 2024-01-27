@@ -55,10 +55,10 @@ public final class PluginLoader {
     public static final String RFB_PLUGINS_DIR = "rfb-plugin";
     private static final ArrayList<FileSystem> jarFilesystems = new ArrayList<>();
     // Metadata of plugins in loading order
-    private static final ArrayList<RfbPluginMetadata> loadedPluginMetadata = new ArrayList<>();
-    private static final Map<String, RfbPluginMetadata> loadedPluginMetadataById = new HashMap<>();
-    private static final ArrayList<RfbPluginHandle> loadedPlugins = new ArrayList<>();
-    private static final Map<String, RfbPluginHandle> loadedPluginsById = new HashMap<>();
+    public static final ArrayList<RfbPluginMetadata> loadedPluginMetadata = new ArrayList<>();
+    public static final Map<String, RfbPluginMetadata> loadedPluginMetadataById = new HashMap<>();
+    public static final ArrayList<RfbPluginHandle> loadedPlugins = new ArrayList<>();
+    public static final Map<String, RfbPluginHandle> loadedPluginsById = new HashMap<>();
 
     public static void initializePlugins() throws Throwable {
         final List<RfbPluginMetadata> pluginMetadata = findPluginManifests();
