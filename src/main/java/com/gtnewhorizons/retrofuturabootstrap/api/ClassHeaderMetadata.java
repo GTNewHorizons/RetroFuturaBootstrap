@@ -50,6 +50,12 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
                 constantPoolEntryOffsets[entry] = off;
                 ConstantPoolEntryTypes type = ConstantPoolEntryTypes.parse(bytes, off);
                 constantPoolEntryTypes[entry] = type;
+                if (type == ConstantPoolEntryTypes.Double || type == ConstantPoolEntryTypes.Long) {
+                    // Longs and Doubles take up 2 constant pool indices
+                    entry++;
+                    constantPoolEntryOffsets[entry] = off;
+                    constantPoolEntryTypes[entry] = type;
+                }
                 off += type.byteLength(bytes, off);
             }
             cpOff = off;
