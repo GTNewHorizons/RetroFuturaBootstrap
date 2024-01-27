@@ -46,7 +46,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         final int cpOff;
         {
             int off = Offsets.constantPoolStart;
-            for (int entry = 0; entry < constantPoolEntryCount; entry++) {
+            for (int entry = 0; entry < constantPoolEntryCount - 1; entry++) {
                 constantPoolEntryOffsets[entry] = off;
                 ConstantPoolEntryTypes type = ConstantPoolEntryTypes.parse(bytes, off);
                 constantPoolEntryTypes[entry] = type;
