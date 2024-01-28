@@ -280,6 +280,9 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         } catch (IOException e) {
             /* no-op */
         }
+        if (Main.cfgDumpLoadedClassesPerTransformer && classBytes != null) {
+            Main.dumpClass(this.getClassLoaderName(), transformedName + "__000_pretransform", classBytes);
+        }
         if (runTransformers) {
             try {
                 classBytes = runTransformers(untransformedName, transformedName, classBytes);
@@ -390,9 +393,6 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
      * </ol>
      */
     private byte[] runTransformers(final String name, final String transformedName, byte[] basicClass) {
-        if (Main.cfgDumpLoadedClassesPerTransformer && basicClass != null) {
-            Main.dumpClass(this.getClassLoaderName(), transformedName + "__000_pretransform", basicClass);
-        }
         int xformerIndex = 1;
         for (IClassTransformer xformer : transformers) {
             try {
