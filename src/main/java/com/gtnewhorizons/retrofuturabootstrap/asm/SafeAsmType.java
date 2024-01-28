@@ -1,4 +1,4 @@
-package com.gtnewhorizons.retrofuturabootstrap;
+package com.gtnewhorizons.retrofuturabootstrap.asm;
 
 import org.objectweb.asm.Type;
 

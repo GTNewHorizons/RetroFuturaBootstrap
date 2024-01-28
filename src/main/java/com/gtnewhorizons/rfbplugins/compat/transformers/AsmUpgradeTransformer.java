@@ -4,15 +4,17 @@ import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
-import com.gtnewhorizons.retrofuturabootstrap.asm.SafeAsmClassWriter;
+import com.gtnewhorizons.retrofuturabootstrap.asm.UpgradedTreeNodes;
+import com.gtnewhorizons.retrofuturabootstrap.asm.UpgradedVisitors;
 import java.nio.charset.StandardCharsets;
-import java.util.jar.Attributes;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.jar.Manifest;
 import org.intellij.lang.annotations.Pattern;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -20,21 +22,28 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
 /**
- * Transforms all construction and extending of asm's {@link org.objectweb.asm.ClassWriter} to our {@link SafeAsmClassWriter}
+ * For most coremods it's perfectly safe to upgrade the ASM opcode version to latest, as they only modify/scan a small subset of class data.
+ * This allows those transformers to work on newer classes.
  */
-public class SafeClassWriterTransformer implements RfbClassTransformer {
-    /** Attribute to set to "true" on a JAR to skip class transforms from this transformer entirely */
-    public static final Attributes.Name MANIFEST_SAFE_ATTRIBUTE = new Attributes.Name("Has-Safe-ClassWriters");
+public class AsmUpgradeTransformer implements RfbClassTransformer {
+    private static final byte[] quickScan = "org/objectweb/asm".getBytes(StandardCharsets.UTF_8);
+
+    private final Map<String, String> upgradeMap = new HashMap<>();
+
+    public AsmUpgradeTransformer() {
+        for (Class<?> visitor : UpgradedVisitors.ALL_VISITORS) {
+            upgradeMap.put(Type.getInternalName(visitor.getSuperclass()), Type.getInternalName(visitor));
+        }
+        for (Class<?> visitor : UpgradedTreeNodes.ALL_NODES) {
+            upgradeMap.put(Type.getInternalName(visitor.getSuperclass()), Type.getInternalName(visitor));
+        }
+    }
 
     @Pattern("[a-z0-9-]+")
     @Override
     public @NotNull String id() {
-        return "safe-class-writer";
+        return "asm-upgrader";
     }
-
-    final String CLASS_WRITER_NAME = ClassWriter.class.getName().replace('.', '/');
-    final byte[] CLASS_WRITER_BYTES = CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8);
-    final String SAFE_WRITER_NAME = SafeAsmClassWriter.class.getName().replace('.', '/');
 
     @Override
     public boolean shouldTransformClass(
@@ -46,11 +55,11 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
         if (!classNode.isPresent()) {
             return false;
         }
-        if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
-            return false;
+        if (classNode.isOriginal()) {
+            final byte[] original = classNode.getOriginalBytes();
+            return ClassHeaderMetadata.hasSubstring(original, quickScan);
         }
-
-        return ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), CLASS_WRITER_BYTES);
+        return true;
     }
 
     @Override
@@ -64,9 +73,14 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
         if (node == null) {
             return;
         }
-        if (node.superName.equals(CLASS_WRITER_NAME)) {
-            node.superName = SAFE_WRITER_NAME;
+
+        if (node.superName != null) {
+            final String superclass = upgradeMap.get(node.superName);
+            if (superclass != null) {
+                node.superName = superclass;
+            }
         }
+
         if (node.methods == null) {
             return;
         }
@@ -77,13 +91,17 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
             for (AbstractInsnNode rawInsn : method.instructions) {
                 if (rawInsn.getType() == AbstractInsnNode.TYPE_INSN && rawInsn.getOpcode() == Opcodes.NEW) {
                     final TypeInsnNode insn = (TypeInsnNode) rawInsn;
-                    if (insn.desc.equals(CLASS_WRITER_NAME)) {
-                        insn.desc = SAFE_WRITER_NAME;
+                    final String upgraded = upgradeMap.get(insn.desc);
+                    if (upgraded != null) {
+                        insn.desc = upgraded;
                     }
                 } else if (rawInsn.getType() == AbstractInsnNode.METHOD_INSN) {
                     final MethodInsnNode insn = (MethodInsnNode) rawInsn;
-                    if (insn.owner.equals(CLASS_WRITER_NAME) && insn.name.equals("<init>")) {
-                        insn.owner = SAFE_WRITER_NAME;
+                    if (insn.name.equals("<init>")) {
+                        final String upgraded = upgradeMap.get(insn.owner);
+                        if (upgraded != null) {
+                            insn.owner = upgraded;
+                        }
                     }
                 }
             }

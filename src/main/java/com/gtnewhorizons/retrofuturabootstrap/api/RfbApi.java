@@ -50,6 +50,11 @@ public interface RfbApi {
     List<RfbPluginHandle> getLoadedPlugins();
 
     /**
+     * @return The newest ASM version supported by RFB, can be used in ASM constructors as the opcode version.
+     */
+    int newestAsmVersion();
+
+    /**
      * @return The Java major version as an integer (e.g. 8, 9, 21)
      */
     int javaMajorVersion();

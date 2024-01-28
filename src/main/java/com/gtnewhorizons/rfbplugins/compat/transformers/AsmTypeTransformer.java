@@ -79,7 +79,7 @@ public class AsmTypeTransformer implements RfbClassTransformer {
                     if ("org/objectweb/asm/Type".equals(mi.owner)
                             && "getType".equals(mi.name)
                             && "(Ljava/lang/String;)Lorg/objectweb/asm/Type;".equals(mi.desc)) {
-                        mi.owner = "com/gtnewhorizons/retrofuturabootstrap/SafeAsmType";
+                        mi.owner = "com/gtnewhorizons/retrofuturabootstrap/asm/SafeAsmType";
                     }
                 }
             }

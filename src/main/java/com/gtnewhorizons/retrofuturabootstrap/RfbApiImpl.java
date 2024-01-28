@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.Opcodes;
 
 public final class RfbApiImpl implements RfbApi {
     public static final RfbApiImpl INSTANCE = new RfbApiImpl();
@@ -50,6 +51,11 @@ public final class RfbApiImpl implements RfbApi {
     @Override
     public @NotNull List<RfbPluginHandle> getLoadedPlugins() {
         return Collections.unmodifiableList(PluginLoader.loadedPlugins);
+    }
+
+    @Override
+    public int newestAsmVersion() {
+        return Opcodes.ASM9;
     }
 
     @Override

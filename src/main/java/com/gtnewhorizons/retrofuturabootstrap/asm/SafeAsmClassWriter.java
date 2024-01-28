@@ -1,5 +1,6 @@
-package com.gtnewhorizons.retrofuturabootstrap;
+package com.gtnewhorizons.retrofuturabootstrap.asm;
 
+import com.gtnewhorizons.retrofuturabootstrap.Main;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
