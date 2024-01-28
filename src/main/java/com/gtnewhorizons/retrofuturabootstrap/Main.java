@@ -191,7 +191,8 @@ public class Main {
             final Path clRoot = (classLoaderName == null || classLoaderName.isEmpty())
                     ? dumpRoot
                     : dumpRoot.resolve(classLoaderName);
-            final String internalName = className.replace('.', '/');
+            // Replace $->. because otherwise the files are invisible in IntelliJ
+            final String internalName = className.replace('.', '/').replace('$', '.');
             final Path targetPath = clRoot.resolve(internalName + ".class");
             if (cfgDumpClassesAsynchronously && classDumpingService != null) {
                 classDumpingService.submit(() -> {
