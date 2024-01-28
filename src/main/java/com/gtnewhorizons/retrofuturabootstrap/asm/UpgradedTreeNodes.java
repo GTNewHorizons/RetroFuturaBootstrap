@@ -11,7 +11,7 @@ public class UpgradedTreeNodes {
 
     public static final class Class extends ClassNode {
         public Class() {
-            super();
+            super(NEWEST_ASM_VERSION);
         }
 
         public Class(int api) {
