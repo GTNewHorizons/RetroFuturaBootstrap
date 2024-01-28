@@ -6,6 +6,13 @@ Made by writing a [specification](./ll-spec.md) of how LaunchWrapper operates, a
 Targets Java 8, but is compatible with latest Java releases (last tested: 21), because the main use is enabling [lwjgl3ify](https://github.com/GTNewHorizons/lwjgl3ify)-like mods.
 If there is a good use case, I'm open to lowering the Java requirement further.
 
+## Runtime options
+
+Some RFB features can be controlled by setting java system properties, like with the `-Dname=value` JVM option.
+ - `-Drfb.dumpLoadedClasses=true` - will dump post-transform classes as they load into `RFB_CLASS_DUMP[_NUMBER]` directories in your `.minecraft` directory.
+ - `-Drfb.dumpLoadedClassesPerTransformer=true` - will dump classes like above, but save a separate file for each class transformer that runs and modifies the class.
+ - `-Drfb.dumpClassesAsynchronously=false` - by default it's `true`, if changed to `false` dumping classes will happen on the thread that does the loading instead of in the background.
+
 ## Plugins
 
 RetroFuturaBootstrap supports early loading plugins to transform mod loader classes, or even other plugin classes, for the purpose of maintaining compatibility patches for code that is difficult to modify otherwise.
