@@ -6,6 +6,7 @@ import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformerHandle;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.jar.Manifest;
 
@@ -45,6 +46,7 @@ public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
         final ExtensibleClassLoader self = (ExtensibleClassLoader) this;
         int xformerIndex = 0;
         final ClassNodeHandle nodeHandle = new ClassNodeHandle(basicClass);
+        byte[] previousBytes = basicClass;
         xformerLoop:
         for (RfbClassTransformerHandle handle : rfbTransformers) {
             for (final String exclusion : handle.exclusions()) {
@@ -59,7 +61,7 @@ public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
 
                     if (Main.cfgDumpLoadedClassesPerTransformer) {
                         final byte[] newBytes = nodeHandle.computeBytes();
-                        if (newBytes != null) {
+                        if (newBytes != null && !Arrays.equals(newBytes, previousBytes)) {
                             Main.dumpClass(
                                     this.getClassLoaderName(),
                                     String.format(
@@ -67,6 +69,7 @@ public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
                                             className, xformerIndex, handle.id().replace(':', '$')),
                                     newBytes);
                         }
+                        previousBytes = newBytes;
                     }
                 }
             } catch (UnsupportedOperationException e) {
