@@ -18,22 +18,22 @@ import org.jetbrains.annotations.VisibleForTesting;
 
 public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
 
-    public static final Pattern ID_VALIDATOR = Pattern.compile("[a-z0-9-]+");
-    public static final Comparator<? super RfbPluginMetadata> ID_COMPARATOR =
+    public static final @NotNull Pattern ID_VALIDATOR = Pattern.compile("[a-z0-9-]+");
+    public static final @NotNull Comparator<? super RfbPluginMetadata> ID_COMPARATOR =
             Comparator.nullsFirst(Comparator.comparing(RfbPluginMetadata::id));
-    public static final Comparator<? super RfbPluginMetadata> ID_AND_PIN_COMPARATOR = Comparator.nullsFirst(
+    public static final @NotNull Comparator<? super RfbPluginMetadata> ID_AND_PIN_COMPARATOR = Comparator.nullsFirst(
             Comparator.comparing(RfbPluginMetadata::pinLast).thenComparing(RfbPluginMetadata::id));
 
     private final @NotNull URL classpathEntry;
     private final @NotNull URI source;
     private final @NotNull IdAndVersion idAndVersion;
     private final @NotNull String name;
-    private final @NotNull IdAndVersion[] additionalVersions;
-    private final @NotNull IdAndVersionRange[] versionConstraints;
-    private final @NotNull String[] transformerExclusions;
-    private final @NotNull String[] loadBefore;
-    private final @NotNull String[] loadAfter;
-    private final @NotNull String[] loadRequires;
+    private final @NotNull IdAndVersion @NotNull [] additionalVersions;
+    private final @NotNull IdAndVersionRange @NotNull [] versionConstraints;
+    private final @NotNull String @NotNull [] transformerExclusions;
+    private final @NotNull String @NotNull [] loadBefore;
+    private final @NotNull String @NotNull [] loadAfter;
+    private final @NotNull String @NotNull [] loadRequires;
     private final boolean pinLast;
     private final @NotNull String className;
     private @Nullable RfbPlugin instance;
@@ -181,27 +181,27 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
         }
     }
 
-    public URL classpathEntry() {
+    public @NotNull URL classpathEntry() {
         return classpathEntry;
     }
 
-    public URI source() {
+    public @NotNull URI source() {
         return source;
     }
 
-    public IdAndVersion idAndVersion() {
+    public @NotNull IdAndVersion idAndVersion() {
         return idAndVersion;
     }
 
-    public String id() {
+    public @NotNull String id() {
         return idAndVersion.id();
     }
 
-    public String name() {
+    public @NotNull String name() {
         return name;
     }
 
-    public ArtifactVersion version() {
+    public @NotNull ArtifactVersion version() {
         return idAndVersion.version();
     }
 
@@ -221,11 +221,11 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
         return null;
     }
 
-    public IdAndVersion[] additionalVersions() {
+    public @NotNull IdAndVersion @NotNull [] additionalVersions() {
         return additionalVersions;
     }
 
-    public String className() {
+    public @NotNull String className() {
         return className;
     }
 
@@ -241,23 +241,23 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
         }
     }
 
-    public IdAndVersionRange[] versionConstraints() {
+    public @NotNull IdAndVersionRange @NotNull [] versionConstraints() {
         return versionConstraints;
     }
 
-    public String[] transformerExclusions() {
+    public @NotNull String @NotNull [] transformerExclusions() {
         return transformerExclusions;
     }
 
-    public String[] loadBefore() {
+    public @NotNull String @NotNull [] loadBefore() {
         return loadBefore;
     }
 
-    public String[] loadAfter() {
+    public @NotNull String @NotNull [] loadAfter() {
         return loadAfter;
     }
 
-    public String[] loadRequires() {
+    public @NotNull String @NotNull [] loadRequires() {
         return loadRequires;
     }
 
@@ -298,7 +298,7 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
     }
 
     @Override
-    public String toString() {
+    public @NotNull String toString() {
         return "RfbPluginMetadata["
                 + "classpathEntry="
                 + classpathEntry

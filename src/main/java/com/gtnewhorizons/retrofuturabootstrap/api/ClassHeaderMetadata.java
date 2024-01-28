@@ -17,9 +17,9 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     public final int majorVersion;
     public final int constantPoolEntryCount;
     /** Byte offsets of where each constant pool entry starts (index of the tag byte), zero-indexed! */
-    public final int[] constantPoolEntryOffsets;
+    public final int @NotNull [] constantPoolEntryOffsets;
     /** Type of each parsed constant pool entry, zero-indexed! */
-    public final ConstantPoolEntryTypes[] constantPoolEntryTypes;
+    public final ConstantPoolEntryTypes @NotNull [] constantPoolEntryTypes;
 
     public final int constantPoolEndOffset;
     public final int accessFlags;
@@ -104,7 +104,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
      * @param off Offset to the 16-bit length field.
      * @return The decoded String.
      */
-    public static String modifiedUtf8(byte @NotNull [] arr, int off) {
+    public static @NotNull String modifiedUtf8(byte @NotNull [] arr, int off) {
         try (ByteArrayInputStream bais = new ByteArrayInputStream(arr, off, arr.length - off);
                 DataInputStream dis = new DataInputStream(bais)) {
             return dis.readUTF();
@@ -214,7 +214,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
          * @param offset The offset where the entry starts
          * @return The total length of the entry, including the tag byte
          */
-        public int byteLength(final byte[] classFile, final int offset) {
+        public int byteLength(final byte @NotNull [] classFile, final int offset) {
             if (this == ConstantPoolEntryTypes.Utf8) {
                 return 3 + u16(classFile, offset + 1);
             }

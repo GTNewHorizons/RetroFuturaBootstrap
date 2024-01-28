@@ -15,7 +15,7 @@ public interface RfbPlugin {
     /**
      * Called immediately after constructing the plugin using a public no-argument constructor and adding it to the loaded plugins lists.
      */
-    default void onConstruction(PluginContext ctx) {}
+    default void onConstruction(@NotNull PluginContext ctx) {}
 
     /**
      * These transformers are simply appended in-order to the transformer list during the plugin construction phase, with order following plugin load order.
