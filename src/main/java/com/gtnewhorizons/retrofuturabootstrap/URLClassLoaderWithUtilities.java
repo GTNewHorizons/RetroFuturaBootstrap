@@ -62,7 +62,9 @@ public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
                         if (newBytes != null) {
                             Main.dumpClass(
                                     this.getClassLoaderName(),
-                                    String.format("%s__S%03d_%s", className, xformerIndex, xformer.id()),
+                                    String.format(
+                                            "%s__S%03d_%s",
+                                            className, xformerIndex, handle.id().replace(':', '$')),
                                     newBytes);
                         }
                     }
