@@ -229,7 +229,7 @@ public class Launch {
                 final ITweaker tweaker = iter.next();
                 LogWrapper.logger.info(
                         "Installing tweaker {}", tweaker.getClass().getName());
-                tweaker.acceptOptions(argumentList, gameDir, assetsDir, version);
+                tweaker.acceptOptions(remainingArgs, gameDir, assetsDir, version);
                 tweaker.injectIntoClassLoader(classLoader);
                 allTweakers.add(tweaker);
                 iter.remove();
