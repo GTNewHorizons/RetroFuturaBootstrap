@@ -240,8 +240,6 @@ public class Launch {
             Collections.addAll(argumentList, tweaker.getLaunchArguments());
         }
 
-        argumentList.addAll(remainingArgs);
-
         try {
             final String launchTargetName =
                     Objects.requireNonNull(firstTweaker, "No tweaker supplied").getLaunchTarget();
