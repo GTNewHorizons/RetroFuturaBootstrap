@@ -224,13 +224,13 @@ public final class PluginLoader {
                     for (String dep : before) {
                         final Integer depIdx = idLookup.get(dep);
                         if (depIdx != null) {
-                            edges.get(depIdx).add(i);
+                            edges.get(i).add(depIdx);
                         }
                     }
                     for (String dep : after) {
                         final Integer depIdx = idLookup.get(dep);
                         if (depIdx != null) {
-                            edges.get(i).add(depIdx);
+                            edges.get(depIdx).add(i);
                         }
                     }
                 }
