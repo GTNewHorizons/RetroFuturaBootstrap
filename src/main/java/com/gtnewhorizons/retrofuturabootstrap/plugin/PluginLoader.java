@@ -80,7 +80,7 @@ public final class PluginLoader {
             for (RfbPluginMetadata.IdAndVersion extraId : pluginMeta.additionalVersions()) {
                 loadedPluginMetadataById.put(extraId.id(), pluginMeta);
             }
-            Main.addClasspathUrl(pluginMeta.classpathEntry());
+            Main.addSilentClasspathUrl(pluginMeta.classpathEntry());
         }
         loadedPlugins.clear();
         loadedPluginsById.clear();

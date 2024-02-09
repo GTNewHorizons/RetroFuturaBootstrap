@@ -307,6 +307,11 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         super.addURL(url);
     }
 
+    @Override
+    public void addSilentURL(@Nullable URL url) {
+        super.addURL(url);
+    }
+
     /**
      * Required for Java Agents to work on HotSpot
      * @param path The file path added to the classpath

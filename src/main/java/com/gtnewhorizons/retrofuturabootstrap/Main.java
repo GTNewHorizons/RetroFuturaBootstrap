@@ -107,6 +107,16 @@ public class Main {
         }
     }
 
+    /** Silently adds a given URL to the classpath of both the compat and launch loaders, if not already added */
+    public static void addSilentClasspathUrl(@NotNull URL url) {
+        if (compatLoader != null) {
+            compatLoader.addSilentURL(url);
+        }
+        if (launchLoader != null) {
+            launchLoader.addSilentURL(url);
+        }
+    }
+
     /**
      * @return An immutable view on RFB transformers.
      */

@@ -40,6 +40,13 @@ public interface ExtensibleClassLoader {
     void addURL(@Nullable URL url);
 
     /**
+     * Like addURL, but does not add the URL to the sources array.
+     *
+     * @param url the URL to be added to the search path of URLs
+     */
+    void addSilentURL(@Nullable URL url);
+
+    /**
      * Finds and loads the class with the specified name from the URL search
      * path. Any URLs referring to JAR files are loaded and opened as needed
      * until the class is found.
