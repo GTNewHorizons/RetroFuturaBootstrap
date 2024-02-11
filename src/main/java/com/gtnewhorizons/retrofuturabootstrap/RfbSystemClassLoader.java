@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.jar.Manifest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -40,6 +41,8 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         ClassLoader.registerAsParallelCapable();
     }
 
+    /** A public hook to allow other parent classloaders to repeat any addURL calls as needed. Only useful if you're loading RFB as a child loader in another platform. */
+    public static Consumer<URL> addURLHook = null;
     /** A reference to the classloader that loaded this class */
     private ClassLoader parent = getClass().getClassLoader();
     /** Reference to the platform class loader that can load JRE/JDK classes */
@@ -53,11 +56,12 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
     private final Map<String, SoftReference<byte[]>> resourceCache = new ConcurrentHashMap<>(1000);
 
     /**
-     * A HashSet of all class prefixes (e.g. "org.lwjgl.") to redirect to the parent classloader.
+     * A HashSet of all class prefixes (e.g. "java.") to globally redirect to the parent classloader.
+     * Use sparingly, the RFB plugin transformers have a very flexible per-transformer exclusion system.
      */
     private Set<String> classLoaderExceptions = new HashSet<>();
     /**
-     * A HashSet of all class prefixes (e.g. "org.objectweb.asm") to redirect to the child classloader.
+     * A HashSet of all class prefixes (e.g. "my.child.package.") to redirect to the child classloader.
      */
     public Set<String> childDelegations = new HashSet<>();
 
@@ -305,11 +309,17 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
     @Override
     public void addURL(final URL url) {
         super.addURL(url);
+        if (addURLHook != null) {
+            addURLHook.accept(url);
+        }
     }
 
     @Override
     public void addSilentURL(@Nullable URL url) {
         super.addURL(url);
+        if (addURLHook != null) {
+            addURLHook.accept(url);
+        }
     }
 
     /**

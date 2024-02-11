@@ -142,11 +142,18 @@ public class Main {
     }
 
     public static void main(String[] args) throws Throwable {
-        if (!(ClassLoader.getSystemClassLoader() instanceof RfbSystemClassLoader)) {
+        final boolean doClassLoaderCheck = !Boolean.getBoolean("rfb.skipClassLoaderCheck");
+        final boolean systemLoaderIsRfb = ClassLoader.getSystemClassLoader() instanceof RfbSystemClassLoader;
+        if (doClassLoaderCheck && !systemLoaderIsRfb) {
             throw new IllegalStateException(
                     "System classloader not overwritten, add -Djava.system.class.loader=com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader to your JVM flags");
         }
-        Main.compatLoader = (RfbSystemClassLoader) ClassLoader.getSystemClassLoader();
+        if (systemLoaderIsRfb) {
+            Main.compatLoader = (RfbSystemClassLoader) ClassLoader.getSystemClassLoader();
+        } else {
+            Main.compatLoader = new RfbSystemClassLoader(ClassLoader.getSystemClassLoader());
+            Thread.currentThread().setContextClassLoader(Main.compatLoader);
+        }
         if (JAVA_MAJOR_VERSION > 8 && URLClassLoaderBase.implementationVersion() == 8) {
             throw new IllegalStateException(
                     "Java newer than 8 is used, while the URLClassLoaderBase for Java 8 was loaded by "
