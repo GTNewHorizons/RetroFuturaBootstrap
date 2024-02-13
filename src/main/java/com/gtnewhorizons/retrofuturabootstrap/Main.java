@@ -9,17 +9,21 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -182,10 +186,37 @@ public class Main {
                             },
                             "RFB ClassDumpingService Shutdown hook"));
         }
+        // Scan the executable .jar for any extra main arguments
+        URL mainLocation = Main.class.getProtectionDomain().getCodeSource().getLocation();
+        // In case of broken LW-like classloaders that pass in jar: urls as the code source
+        while ("jar".equalsIgnoreCase(mainLocation.getProtocol())) {
+            final String str = mainLocation.toString();
+            mainLocation = new URL(str.substring(4, str.lastIndexOf('!')));
+        }
+        String[] combinedArgs = args;
+        try {
+            final Path mainFile = Paths.get(mainLocation.toURI());
+            if (mainFile.toString().toLowerCase(Locale.ROOT).endsWith(".jar")) {
+                try (final JarFile mainJar = new JarFile(mainFile.toFile())) {
+                    final Manifest mainMf = mainJar.getManifest();
+                    if (mainMf != null) {
+                        final String extraArgsCombined =
+                                mainMf.getMainAttributes().getValue("Rfb-Extra-Main-Args");
+                        if (extraArgsCombined != null) {
+                            final String[] extraArgs = extraArgsCombined.split("\t");
+                            combinedArgs = Arrays.copyOf(args, args.length + extraArgs.length);
+                            System.arraycopy(extraArgs, 0, combinedArgs, args.length, combinedArgs.length);
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            // ignore
+        }
         try {
             Class<?> launchClass = Class.forName("net.minecraft.launchwrapper.Launch", true, compatLoader);
             Method main = launchClass.getMethod("main", String[].class);
-            main.invoke(null, (Object) args);
+            main.invoke(null, (Object) combinedArgs);
         } catch (InvocationTargetException ite) {
             throw ite.getCause(); // clean up stacktrace
         }
