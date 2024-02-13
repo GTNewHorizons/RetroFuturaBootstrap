@@ -121,4 +121,11 @@ public class URLClassLoaderBase extends URLClassLoader {
     public static int getJavaMajorVersion() {
         return Runtime.version().version().get(0);
     }
+
+    /**
+     * @return The ID of the current Java runtime process
+     */
+    public static long getCurrentPid() {
+        return ProcessHandle.current().pid();
+    }
 }

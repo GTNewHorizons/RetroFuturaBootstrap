@@ -76,4 +76,9 @@ public interface RfbApi {
      */
     @NotNull
     Path assetsDirectory();
+
+    /**
+     * @return The ID of the process running the current Java runtime.
+     */
+    long currentPid();
 }

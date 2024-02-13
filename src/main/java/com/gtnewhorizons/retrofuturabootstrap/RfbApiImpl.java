@@ -77,4 +77,9 @@ public final class RfbApiImpl implements RfbApi {
     public @NotNull Path assetsDirectory() {
         return Main.initialAssetsDir == null ? Paths.get(".") : Main.initialAssetsDir.toPath();
     }
+
+    @Override
+    public long currentPid() {
+        return URLClassLoaderBase.getCurrentPid();
+    }
 }

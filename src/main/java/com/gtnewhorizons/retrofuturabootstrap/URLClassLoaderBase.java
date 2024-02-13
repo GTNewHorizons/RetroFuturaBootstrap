@@ -3,6 +3,8 @@ package com.gtnewhorizons.retrofuturabootstrap;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLStreamHandlerFactory;
@@ -149,5 +151,16 @@ public class URLClassLoaderBase extends URLClassLoader {
         } catch (Exception e) {
             return 8;
         }
+    }
+
+    /**
+     * @return The ID of the current Java runtime process
+     */
+    public static long getCurrentPid() {
+        final RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
+        // getName is implemented to return getPid() + "@" + hostname
+        final String combinedPidHostname = runtime.getName();
+        final String[] parts = combinedPidHostname.split("@", 2);
+        return Integer.parseInt(parts[0]);
     }
 }
