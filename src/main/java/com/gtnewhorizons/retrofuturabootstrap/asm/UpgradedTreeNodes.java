@@ -9,7 +9,7 @@ public class UpgradedTreeNodes {
 
     public static final java.lang.Class<?>[] ALL_NODES = new java.lang.Class[] {Class.class};
 
-    public static final class Class extends ClassNode {
+    public static class Class extends ClassNode {
         public Class() {
             super(NEWEST_ASM_VERSION);
         }
