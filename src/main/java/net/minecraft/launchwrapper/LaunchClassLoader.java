@@ -7,6 +7,7 @@ import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.FastClassAccessor;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
+import com.gtnewhorizons.retrofuturabootstrap.asm.SafeAsmClassWriter;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -29,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.ClassWriter;
 
 public class LaunchClassLoader extends URLClassLoaderWithUtilities implements ExtensibleClassLoader {
 
@@ -391,7 +393,27 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         int xformerIndex = 1;
         for (IClassTransformer xformer : transformers) {
             try {
-                final byte[] newKlass = xformer.transform(name, transformedName, basicClass);
+                byte[] newKlass;
+                try {
+                    newKlass = xformer.transform(name, transformedName, basicClass);
+                } catch (Exception e) {
+                    // retry in case of invalid frames written
+                    if (e.getStackTrace() != null
+                            && e.getStackTrace().length > 2
+                            && e.getStackTrace()[0].getClassName().contains("asm.MethodWriter")) {
+                        SafeAsmClassWriter.forcedFlags.set(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+                        SafeAsmClassWriter.forcedOriginalClass.set(basicClass);
+                        newKlass = xformer.transform(name, transformedName, basicClass);
+                        SafeAsmClassWriter.forcedOriginalClass.set(null);
+                        SafeAsmClassWriter.forcedFlags.set(0);
+                        LogWrapper.logger.warn(
+                                "Transformer {} did not generate correct frames for {}, had to re-compute using asm.",
+                                xformer.getClass().getName(),
+                                transformedName);
+                    } else {
+                        throw e;
+                    }
+                }
                 if (Main.cfgDumpLoadedClassesPerTransformer
                         && newKlass != null
                         && !Arrays.equals(basicClass, newKlass)) {
