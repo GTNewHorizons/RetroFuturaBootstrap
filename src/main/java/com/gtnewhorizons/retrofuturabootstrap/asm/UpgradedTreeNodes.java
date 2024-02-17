@@ -17,5 +17,10 @@ public class UpgradedTreeNodes {
         public Class(int api) {
             super(NEWEST_ASM_VERSION);
         }
+
+        @Override
+        public void check(int api) {
+            super.check(NEWEST_ASM_VERSION);
+        }
     }
 }
