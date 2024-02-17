@@ -5,6 +5,7 @@ import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPlugin;
 import com.gtnewhorizons.rfbplugins.compat.transformers.InterfaceMethodRefFixer;
 import com.gtnewhorizons.rfbplugins.compat.transformers.UnsafeReflectionTransformer;
+import com.gtnewhorizons.rfbplugins.compat.transformers.UuidTransformer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -22,7 +23,7 @@ public class ModernJavaCompatibilityPlugin implements RfbPlugin {
             return null;
         }
         return new RfbClassTransformer[] {
-            new InterfaceMethodRefFixer(), new UnsafeReflectionTransformer(),
+            new InterfaceMethodRefFixer(), new UnsafeReflectionTransformer(), new UuidTransformer()
         };
     }
 }
