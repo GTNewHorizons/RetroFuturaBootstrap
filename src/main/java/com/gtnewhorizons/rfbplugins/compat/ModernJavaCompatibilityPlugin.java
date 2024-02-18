@@ -3,6 +3,7 @@ package com.gtnewhorizons.rfbplugins.compat;
 import com.gtnewhorizons.retrofuturabootstrap.api.RetroFuturaBootstrap;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPlugin;
+import com.gtnewhorizons.rfbplugins.compat.transformers.DeprecatedRedirectTransformer;
 import com.gtnewhorizons.rfbplugins.compat.transformers.InterfaceMethodRefFixer;
 import com.gtnewhorizons.rfbplugins.compat.transformers.UnsafeReflectionTransformer;
 import com.gtnewhorizons.rfbplugins.compat.transformers.UuidTransformer;
@@ -23,7 +24,10 @@ public class ModernJavaCompatibilityPlugin implements RfbPlugin {
             return null;
         }
         return new RfbClassTransformer[] {
-            new InterfaceMethodRefFixer(), new UnsafeReflectionTransformer(), new UuidTransformer()
+            new InterfaceMethodRefFixer(),
+            new UnsafeReflectionTransformer(),
+            new UuidTransformer(),
+            new DeprecatedRedirectTransformer()
         };
     }
 }
