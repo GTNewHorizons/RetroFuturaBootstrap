@@ -54,7 +54,7 @@ public class Main {
     }
 
     /** Returns the running version of RFB */
-    public static @NotNull String getVersion() {
+    public static @NotNull String rfbVersion() {
         return BuildConfig.VERSION;
     }
 

@@ -32,7 +32,7 @@ public class Launch {
      * See: <a href="https://github.com/LegacyModdingMC/UniMix/blob/bbd3c93bd0e1f5979dbeb983cc7f55e73a86e281/src/launchwrapper/java/org/spongepowered/asm/service/mojang/MixinServiceLaunchWrapper.java#L183-L185">org.spongepowered.asm.service.mojang.MixinServiceLaunchWrapper#getInitialPhase()</a>.
      */
     private void launch(String[] args) throws Throwable {
-        realLaunch(args);
+        rfb$realLaunch(args);
     }
 
     /** Default tweaker to launch with when no override is specified on the command line */
@@ -66,11 +66,11 @@ public class Launch {
     private static final PrintStream originalSysErr = System.err;
 
     /** RFB: Standard blackboard key, an ArrayList(String) of tweakers, mutable */
-    public static final String BLACKBOARD_TWEAK_CLASSES = "TweakClasses";
+    public static final String RFB$BLACKBOARD_TWEAK_CLASSES = "TweakClasses";
     /** RFB: Standard blackboard key, an ArrayList(String) of commandline arguments, mutable */
-    public static final String BLACKBOARD_ARGUMENT_LIST = "ArgumentList";
+    public static final String RFB$BLACKBOARD_ARGUMENT_LIST = "ArgumentList";
     /** RFB: Standard blackboard key, an ArrayList(ITweaker) of the currently loaded tweakers */
-    public static final String BLACKBOARD_TWEAKS = "Tweaks";
+    public static final String RFB$BLACKBOARD_TWEAKS = "Tweaks";
 
     /**
      * <ol>
@@ -138,7 +138,7 @@ public class Launch {
      *
      * @param args commandline arguments
      */
-    private void realLaunch(String[] args) throws Throwable {
+    private void rfb$realLaunch(String[] args) throws Throwable {
         final OptionParser parser = new OptionParser();
         final OptionSpec<String> aVersion =
                 parser.accepts("version").withRequiredArg().ofType(String.class);
@@ -186,11 +186,11 @@ public class Launch {
             Main.classDumpDirectory.set(dumpPath);
         }
 
-        blackboard.put(BLACKBOARD_TWEAK_CLASSES, tweakClasses);
+        blackboard.put(RFB$BLACKBOARD_TWEAK_CLASSES, tweakClasses);
         final List<String> argumentList = new ArrayList<>();
-        blackboard.put(BLACKBOARD_ARGUMENT_LIST, argumentList);
+        blackboard.put(RFB$BLACKBOARD_ARGUMENT_LIST, argumentList);
         final List<ITweaker> tweaks = new ArrayList<>();
-        blackboard.put(BLACKBOARD_TWEAKS, tweaks);
+        blackboard.put(RFB$BLACKBOARD_TWEAKS, tweaks);
 
         PluginLoader.initializePlugins();
 
@@ -203,7 +203,7 @@ public class Launch {
                 try {
                     final String tweakClass = iter.next();
                     if (dedupTweakClasses.contains(tweakClass)) {
-                        LogWrapper.logger.warn("Duplicate tweaker class {}", tweakClass);
+                        LogWrapper.rfb$logger.warn("Duplicate tweaker class {}", tweakClass);
                         iter.remove();
                         continue;
                     }
@@ -212,7 +212,7 @@ public class Launch {
                     final String tweakPackagePrefix = (lastDot == -1) ? tweakClass : tweakClass.substring(0, lastDot);
                     classLoader.addClassLoaderExclusion(tweakPackagePrefix);
 
-                    LogWrapper.logger.info("Constructing tweaker {}", tweakClass);
+                    LogWrapper.rfb$logger.info("Constructing tweaker {}", tweakClass);
                     Class<?> tweakerClass = Class.forName(tweakClass, true, classLoader);
                     ITweaker tweaker = (ITweaker) tweakerClass.getConstructor().newInstance();
                     tweaks.add(tweaker);
@@ -227,7 +227,7 @@ public class Launch {
 
             for (Iterator<ITweaker> iter = tweaks.iterator(); iter.hasNext(); ) {
                 final ITweaker tweaker = iter.next();
-                LogWrapper.logger.info(
+                LogWrapper.rfb$logger.info(
                         "Installing tweaker {}", tweaker.getClass().getName());
                 tweaker.acceptOptions(remainingArgs, gameDir, assetsDir, version);
                 tweaker.injectIntoClassLoader(classLoader);

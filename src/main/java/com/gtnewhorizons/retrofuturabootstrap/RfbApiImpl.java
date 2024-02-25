@@ -49,7 +49,7 @@ public final class RfbApiImpl implements RfbApi {
     }
 
     @Override
-    public @NotNull List<RfbPluginHandle> getLoadedPlugins() {
+    public @NotNull List<RfbPluginHandle> loadedPlugins() {
         return Collections.unmodifiableList(PluginLoader.loadedPlugins);
     }
 

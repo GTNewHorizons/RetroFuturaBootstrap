@@ -13,7 +13,7 @@ public class LogWrapper {
     /** Guard for log configuration */
     private static volatile boolean configured;
     /** RFB-added: public logger accessor for convenience */
-    public static Logger logger;
+    public static Logger rfb$logger;
 
     /**
      * <ul>
@@ -26,7 +26,7 @@ public class LogWrapper {
             return;
         }
         log.myLog = LogManager.getLogger("LaunchWrapper");
-        logger = log.myLog;
+        rfb$logger = log.myLog;
         Main.logger = log.myLog;
         configured = true;
     }
@@ -34,7 +34,7 @@ public class LogWrapper {
     /** Switches the output to a different Logger object */
     public static void retarget(Logger to) {
         log.myLog = to;
-        logger = log.myLog;
+        rfb$logger = log.myLog;
         Main.logger = log.myLog;
     }
 

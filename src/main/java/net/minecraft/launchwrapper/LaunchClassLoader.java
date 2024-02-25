@@ -41,10 +41,10 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     /** A reference to the classloader that loaded this class */
     private ClassLoader parent = getClass().getClassLoader();
     /** RFB: null or RfbSystemClassLoader reference to parent */
-    private final RfbSystemClassLoader parentRfb =
+    private final RfbSystemClassLoader rfb$parent =
             (parent instanceof RfbSystemClassLoader) ? ((RfbSystemClassLoader) parent) : null;
     /** RFB: Reference to the platform class loader that can load JRE/JDK classes */
-    private static final ClassLoader platformLoader = getPlatformClassLoader();
+    private static final ClassLoader rfb$platformLoader = getPlatformClassLoader();
 
     /** An ArrayList of all class transformers used, mutable, often modified via reflection */
     private List<IClassTransformer> transformers = new ArrayList<>(2);
@@ -175,13 +175,13 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 renameTransformer = (IClassNameTransformer) xformer;
             }
             transformers.add(xformer);
-            LogWrapper.logger.debug("Registered class transformer {}", transformerClassName);
+            LogWrapper.rfb$logger.debug("Registered class transformer {}", transformerClassName);
         } catch (Throwable e) {
             Throwable cause = e;
             if (cause instanceof InvocationTargetException) {
                 cause = cause.getCause();
             }
-            LogWrapper.logger.warn("Could not register a transformer {}", transformerClassName, cause);
+            LogWrapper.rfb$logger.warn("Could not register a transformer {}", transformerClassName, cause);
         }
     }
 
@@ -292,13 +292,13 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             } catch (Throwable t) {
                 ClassNotFoundException err =
                         new ClassNotFoundException("Exception caught while transforming class " + name, t);
-                LogWrapper.logger.debug("Transformer error", err);
+                LogWrapper.rfb$logger.debug("Transformer error", err);
                 throw err;
             }
         }
-        if (parentRfb != null) {
+        if (rfb$parent != null) {
             boolean doCompatTransforms = true;
-            for (String exclusion : parentRfb.childDelegations) {
+            for (String exclusion : rfb$parent.childDelegations) {
                 if (transformedName.startsWith(exclusion)) {
                     doCompatTransforms = false;
                     break;
@@ -314,7 +314,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 } catch (Throwable t) {
                     ClassNotFoundException err =
                             new ClassNotFoundException("Exception caught while transforming class " + name, t);
-                    LogWrapper.logger.debug("Transformer error", err);
+                    LogWrapper.rfb$logger.debug("Transformer error", err);
                     throw err;
                 }
             }
@@ -384,7 +384,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             }
             return url.openConnection();
         } catch (Exception e) {
-            LogWrapper.logger.debug("Couldn't findCodeSourceConnectionFor {}: {}", name, e.getMessage());
+            LogWrapper.rfb$logger.debug("Couldn't findCodeSourceConnectionFor {}: {}", name, e.getMessage());
             return null;
         }
     }
@@ -412,7 +412,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                         newKlass = xformer.transform(name, transformedName, basicClass);
                         SafeAsmClassWriter.forcedOriginalClass.set(null);
                         SafeAsmClassWriter.forcedFlags.set(0);
-                        LogWrapper.logger.warn(
+                        LogWrapper.rfb$logger.warn(
                                 "Transformer {} did not generate correct frames for {}, had to re-compute using asm.",
                                 xformer.getClass().getName(),
                                 transformedName);
@@ -438,7 +438,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 basicClass = newKlass;
             } catch (UnsupportedOperationException e) {
                 if (e.getMessage().contains("requires ASM")) {
-                    LogWrapper.logger.warn(
+                    LogWrapper.rfb$logger.warn(
                             "ASM transformer {} encountered a newer classfile ({} -> {}) than supported: {}",
                             xformer.getClass().getName(),
                             name,
@@ -480,7 +480,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         try {
             return readAllBytes(stream, getOrCreateBuffer());
         } catch (Exception e) {
-            LogWrapper.logger.warn("Could not read InputStream {}", stream.toString(), e);
+            LogWrapper.rfb$logger.warn("Could not read InputStream {}", stream.toString(), e);
             return new byte[0];
         }
     }
@@ -504,7 +504,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     }
 
     /** RFB: Returns a modifiable view of the transformers list */
-    public List<IClassTransformer> getMutableTransformers() {
+    public List<IClassTransformer> rfb$getMutableTransformers() {
         return transformers;
     }
 
@@ -600,9 +600,9 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         final URL resourceUrl = findResource(classPath);
         URLConnection conn = resourceUrl == null ? null : resourceUrl.openConnection();
         if (conn == null) {
-            if (platformLoader != null) {
+            if (rfb$platformLoader != null) {
                 // Try JRE classes
-                final URL platformUrl = platformLoader.getResource(classPath);
+                final URL platformUrl = rfb$platformLoader.getResource(classPath);
                 if (platformUrl != null) {
                     conn = platformUrl.openConnection();
                 }

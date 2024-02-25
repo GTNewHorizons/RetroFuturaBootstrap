@@ -222,6 +222,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         final Package pkg;
         final CodeSource codeSource;
         Manifest manifest = null;
+        byte[] classBytes = null;
         if (!packageName.isEmpty()) {
             if (!name.startsWith("net.minecraft.") && connection instanceof JarURLConnection) {
                 final JarURLConnection jarConnection = (JarURLConnection) connection;
@@ -230,7 +231,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
                 try {
                     manifest = jarConnection.getManifest();
                     pkg = getAndVerifyPackage(packageName, manifest, codeSourceUrl);
-                    getClassBytes(name);
+                    classBytes = getClassBytes(name);
                     codeSigners = jarConnection.getJarEntry().getCodeSigners();
                 } catch (IOException e) {
                     // no-op
@@ -245,11 +246,12 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
             pkg = null;
             codeSource = null;
         }
-        byte[] classBytes = null;
-        try {
-            classBytes = getClassBytes(name);
-        } catch (IOException e) {
-            /* no-op */
+        if (classBytes == null) {
+            try {
+                classBytes = getClassBytes(name);
+            } catch (IOException e) {
+                /* no-op */
+            }
         }
         try {
             if (Main.cfgDumpLoadedClassesPerTransformer && classBytes != null) {

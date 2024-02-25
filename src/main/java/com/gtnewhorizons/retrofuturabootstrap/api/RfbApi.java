@@ -47,7 +47,7 @@ public interface RfbApi {
      * @return An unmodifiable view of all the currently loaded RFB plugins.
      */
     @NotNull
-    List<RfbPluginHandle> getLoadedPlugins();
+    List<RfbPluginHandle> loadedPlugins();
 
     /**
      * @return The newest ASM version supported by RFB, can be used in ASM constructors as the opcode version.
