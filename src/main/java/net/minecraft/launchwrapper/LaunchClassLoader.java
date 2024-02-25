@@ -245,6 +245,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         final Package pkg;
         final CodeSource codeSource;
         Manifest manifest = null;
+        byte[] classBytes = null;
         if (!packageName.isEmpty()) {
             if (!untransformedName.startsWith("net.minecraft.") && connection instanceof JarURLConnection) {
                 final JarURLConnection jarConnection = (JarURLConnection) connection;
@@ -253,7 +254,9 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 try {
                     manifest = jarConnection.getManifest();
                     pkg = getAndVerifyPackage(packageName, manifest, packageSourceUrl);
-                    getClassBytes(untransformedName);
+                    classBytes = runTransformers
+                            ? getClassBytes(untransformedName)
+                            : rfb$getUncachedClassBytes(untransformedName);
                     codeSigners = jarConnection.getJarEntry().getCodeSigners();
                 } catch (IOException e) {
                     // no-op
@@ -271,11 +274,14 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             final URL url = connection == null ? null : connection.getURL();
             codeSource = url == null ? null : new CodeSource(url, (CodeSigner[]) null);
         }
-        byte[] classBytes = null;
-        try {
-            classBytes = getClassBytes(untransformedName);
-        } catch (IOException e) {
-            /* no-op */
+        if (classBytes == null) {
+            try {
+                classBytes = runTransformers
+                        ? getClassBytes(untransformedName)
+                        : rfb$getUncachedClassBytes(untransformedName);
+            } catch (IOException e) {
+                /* no-op */
+            }
         }
         if (Main.cfgDumpLoadedClassesPerTransformer && classBytes != null) {
             Main.dumpClass(this.getClassLoaderName(), transformedName + "__000_pretransform", classBytes);
@@ -580,6 +586,16 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 }
             }
         }
+        final byte[] data = rfb$getUncachedClassBytes(name);
+        if (data == null) {
+            negativeResourceCache.add(name);
+            return null;
+        }
+        resourceCache.put(name, data);
+        return data.clone();
+    }
+
+    private byte[] rfb$getUncachedClassBytes(String name) throws IOException {
         final String classPath = name.replace('.', '/') + ".class";
         final URL resourceUrl = findResource(classPath);
         URLConnection conn = resourceUrl == null ? null : resourceUrl.openConnection();
@@ -599,18 +615,12 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             }
         }
         if (conn == null) {
-            negativeResourceCache.add(name);
             return null;
         }
         final InputStream is = conn.getInputStream();
         final byte[] contents = readFully(is);
         closeSilently(is);
-        if (contents == null) {
-            negativeResourceCache.add(name);
-            return null;
-        }
-        resourceCache.put(name, contents);
-        return contents.clone();
+        return contents;
     }
 
     /** Null-safe, exception-safe close function that silently ignores any errors */
