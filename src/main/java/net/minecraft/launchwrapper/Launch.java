@@ -160,6 +160,8 @@ public class Launch {
         final List<String> tweakClasses = new ArrayList<>(options.valuesOf(aTweakClass));
         final List<String> remainingArgs = options.valuesOf(aRemainder);
 
+        Launch.minecraftHome = gameDir;
+        Launch.assetsDir = assetsDir;
         Main.initialGameVersion = version;
         Main.initialGameDir = gameDir != null ? gameDir : new File(".");
         Main.initialAssetsDir = assetsDir;
