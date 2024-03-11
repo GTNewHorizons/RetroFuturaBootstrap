@@ -54,4 +54,4 @@ loadRequires=mixin
 Standard plugin IDs include:
  - `rfb` - metadata about RetroFuturaBootstrap itself
  - `java` - metadata about the Java version running
- - `mixin` - the [Mixin](https://github.com/fabricmc/Mixin/) library for convenient bytecode manipulation
+ - `mixin` - the [Mixin](https://github.com/fabricmc/Mixin/) library for convenient bytecode manipulation, includes the `mixin:mixin` transformer that represents mixin application.
