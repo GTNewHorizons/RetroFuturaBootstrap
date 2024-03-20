@@ -6,6 +6,7 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.ModuleVisitor;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.RecordComponentVisitor;
 import org.objectweb.asm.signature.SignatureVisitor;
 
@@ -48,12 +49,28 @@ public class UpgradedVisitors {
     }
 
     public static class Method extends MethodVisitor {
+        private final int originalApi;
+
         protected Method(int api) {
             super(NEWEST_ASM_VERSION);
+            originalApi = api;
         }
 
         protected Method(int api, MethodVisitor methodVisitor) {
             super(NEWEST_ASM_VERSION, methodVisitor);
+            originalApi = api;
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
+            if (originalApi < Opcodes.ASM5) {
+                visitMethodInsn(opcode & ~Opcodes.SOURCE_MASK, owner, name, descriptor);
+                return;
+            }
+            if (mv != null) {
+                mv.visitMethodInsn(opcode & ~Opcodes.SOURCE_MASK, owner, name, descriptor, isInterface);
+            }
         }
     }
 
