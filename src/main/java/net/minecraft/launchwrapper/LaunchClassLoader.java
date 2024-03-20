@@ -433,7 +433,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                                             .getName()
                                             .replace('/', '_')
                                             .replace('.', '_')),
-                            basicClass);
+                            newKlass);
                 }
                 basicClass = newKlass;
             } catch (UnsupportedOperationException e) {
