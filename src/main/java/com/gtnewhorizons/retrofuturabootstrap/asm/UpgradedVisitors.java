@@ -62,9 +62,17 @@ public class UpgradedVisitors {
         }
 
         @Override
+        @Deprecated
+        @SuppressWarnings("deprecation")
+        public void visitMethodInsn(final int opcode, final String owner, final String name, final String descriptor) {
+            int opcodeAndSource = opcode | (originalApi < Opcodes.ASM5 ? Opcodes.SOURCE_DEPRECATED : 0);
+            visitMethodInsn(opcodeAndSource, owner, name, descriptor, opcode == Opcodes.INVOKEINTERFACE);
+        }
+
+        @Override
         @SuppressWarnings("deprecation")
         public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-            if (originalApi < Opcodes.ASM5) {
+            if (originalApi < Opcodes.ASM5 && (opcode & Opcodes.SOURCE_DEPRECATED) == 0) {
                 visitMethodInsn(opcode & ~Opcodes.SOURCE_MASK, owner, name, descriptor);
                 return;
             }
