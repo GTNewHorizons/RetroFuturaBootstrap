@@ -80,6 +80,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
                 "org.apache.logging.",
                 "org.objectweb.asm.",
                 "LZMA.",
+                "org.slf4j.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
     }
 

@@ -143,6 +143,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 "org.apache.logging.",
                 "org.objectweb.asm.",
                 "net.minecraft.launchwrapper.",
+                "org.slf4j.",
                 "com.gtnewhorizons.retrofuturabootstrap."));
         transformerExceptions.addAll(Arrays.asList(
                 "javax.",
