@@ -16,7 +16,8 @@ public class ModernJavaCompatibilityPlugin implements RfbPlugin {
     public ModernJavaCompatibilityPlugin() {}
 
     public static final Logger log = LogManager.getLogger("RFB-ModernJava");
-    private static final boolean ENABLED = Boolean.parseBoolean(System.getProperty("rfb.enableModernJavaCompatibilityPlugin", "true"));
+    private static final boolean ENABLED =
+            Boolean.parseBoolean(System.getProperty("rfb.enableModernJavaCompatibilityPlugin", "true"));
 
     @Override
     public @NotNull RfbClassTransformer @Nullable [] makeTransformers() {
