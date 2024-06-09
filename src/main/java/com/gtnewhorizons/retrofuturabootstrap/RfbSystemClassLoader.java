@@ -255,22 +255,22 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
             }
         }
         try {
-            if (Main.cfgDumpLoadedClassesPerTransformer && classBytes != null) {
-                Main.dumpClass(this.getClassLoaderName(), name + "_000_pretransform", classBytes);
+            if (SharedConfig.cfgDumpLoadedClassesPerTransformer && classBytes != null) {
+                SharedConfig.dumpClass(this.getClassLoaderName(), name + "_000_pretransform", classBytes);
             }
             classBytes = runRfbTransformers(
-                    Main.getRfbTransformers(), RfbClassTransformer.Context.SYSTEM, manifest, name, classBytes);
+                    SharedConfig.getRfbTransformers(), RfbClassTransformer.Context.SYSTEM, manifest, name, classBytes);
         } catch (Throwable t) {
             ClassNotFoundException err =
                     new ClassNotFoundException("Exception caught while transforming class " + name, t);
-            Main.logger.debug("Transformer error", err);
+            SharedConfig.logDebug("Transformer error", err);
             throw err;
         }
         if (classBytes == null) {
             throw new ClassNotFoundException(String.format("Class bytes are null for %s (%s, %s)", name, name, name));
         }
-        if (Main.cfgDumpLoadedClasses) {
-            Main.dumpClass(this.getClassLoaderName(), name, classBytes);
+        if (SharedConfig.cfgDumpLoadedClasses) {
+            SharedConfig.dumpClass(this.getClassLoaderName(), name, classBytes);
         }
         Class<?> result = defineClass(name, classBytes, 0, classBytes.length, codeSource);
         cachedClasses.put(name, new WeakReference<>(result));
@@ -301,7 +301,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
             }
             return url.openConnection();
         } catch (Exception e) {
-            Main.logger.debug("Couldn't findCodeSourceConnectionFor {}: {}", name, e.getMessage());
+            SharedConfig.logDebug("Couldn't findCodeSourceConnectionFor " + name, e);
             return null;
         }
     }
@@ -351,7 +351,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         try {
             return readAllBytes(stream, null);
         } catch (Exception e) {
-            Main.logger.warn("Could not read InputStream {}", stream.toString(), e);
+            SharedConfig.logWarning("Could not read InputStream " + stream, e);
             return new byte[0];
         }
     }

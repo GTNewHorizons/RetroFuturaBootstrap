@@ -7,18 +7,14 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -36,44 +32,28 @@ public class Main {
     public @Nullable static ExtensibleClassLoader launchLoader;
     /** An ArrayList of all RFB class transformers used, mutable, in order of application */
     private static final @NotNull AtomicReference<@NotNull RfbClassTransformerHandle[]> rfbTransformers =
-            new AtomicReference<>(new RfbClassTransformerHandle[0]);
+            SharedConfig.rfbTransformers;
     /** The ClassLoader that loaded this class. */
     public static final @NotNull ClassLoader appClassLoader = Main.class.getClassLoader();
-
-    /** Get the system property {@code propName} value as a boolean, or default to {@code defaultValue} if not present */
-    private static boolean getBooleanOr(final String propName, final boolean defaultValue) {
-        final String propValue = System.getProperty(propName);
-        if (propValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Boolean.parseBoolean(propValue);
-        } catch (Exception e) {
-            return defaultValue;
-        }
-    }
 
     /** Returns the running version of RFB */
     public static @NotNull String rfbVersion() {
         return BuildConfig.VERSION;
     }
 
-    public static final @NotNull String RFB_CLASS_DUMP_PREFIX = "RFB_CLASS_DUMP";
+    public static final @NotNull String RFB_CLASS_DUMP_PREFIX = SharedConfig.RFB_CLASS_DUMP_PREFIX;
 
     /** Controlled by system property {@code rfb.dumpLoadedClasses=false}, whether post-transform classes should be dumped to RFB_CLASS_DUMP/ */
-    public static final boolean cfgDumpLoadedClasses = getBooleanOr("rfb.dumpLoadedClasses", false)
-            || Boolean.parseBoolean(System.getProperty("legacy.debugClassLoadingSave", "false"));
+    public static final boolean cfgDumpLoadedClasses = SharedConfig.cfgDumpLoadedClasses;
 
     /** Controlled by system property {@code rfb.dumpLoadedClassesPerTransformer=false}, whether loaded classes should be dumped to RFB_CLASS_DUMP/, with a file per asm transformer */
-    public static final boolean cfgDumpLoadedClassesPerTransformer =
-            getBooleanOr("rfb.dumpLoadedClassesPerTransformer", false)
-                    || Boolean.parseBoolean(System.getProperty("legacy.debugClassLoadingSave", "false"));
+    public static final boolean cfgDumpLoadedClassesPerTransformer = SharedConfig.cfgDumpLoadedClassesPerTransformer;
 
     /** Controlled by system property {@code rfb.dumpClassesAsynchronously=true}, if the class dumps are done from another Thread to avoid slow IO */
-    public static final boolean cfgDumpClassesAsynchronously = getBooleanOr("rfb.dumpClassesAsynchronously", true);
+    public static final boolean cfgDumpClassesAsynchronously = SharedConfig.cfgDumpClassesAsynchronously;
 
     /** The target class dumping directory, initialized during commandline option parsing. */
-    public static @NotNull AtomicReference<@Nullable Path> classDumpDirectory = new AtomicReference<>(null);
+    public static @NotNull AtomicReference<@Nullable Path> classDumpDirectory = SharedConfig.classDumpDirectory;
 
     /** Game version/profile name as parsed during early startup. */
     public static @Nullable String initialGameVersion;
@@ -125,7 +105,7 @@ public class Main {
      * @return An immutable view on RFB transformers.
      */
     public static @NotNull List<@NotNull RfbClassTransformerHandle> getRfbTransformers() {
-        return Collections.unmodifiableList(Arrays.asList(rfbTransformers.get()));
+        return SharedConfig.getRfbTransformers();
     }
 
     /**
@@ -146,6 +126,14 @@ public class Main {
     }
 
     public static void main(String[] args) throws Throwable {
+        SharedConfig.classDumpingService = classDumpingService;
+        SharedConfig.warnLogHandler = (msg, throwable) -> {
+            logger.warn("{}", msg, throwable);
+        };
+        SharedConfig.debugLogHandler = (msg, throwable) -> {
+            logger.debug("{}", msg, throwable);
+        };
+
         final boolean doClassLoaderCheck = !Boolean.getBoolean("rfb.skipClassLoaderCheck");
         final boolean systemLoaderIsRfb = ClassLoader.getSystemClassLoader() instanceof RfbSystemClassLoader;
         if (doClassLoaderCheck && !systemLoaderIsRfb) {
@@ -228,45 +216,6 @@ public class Main {
      * @param classBytes The bytes to save, assumed to not be modified after passing into this method call
      */
     public static void dumpClass(String classLoaderName, String className, byte[] classBytes) {
-        if (className == null || classBytes == null || className.isEmpty()) {
-            return;
-        }
-        try {
-            final Path dumpRoot = Main.classDumpDirectory.get();
-            if (dumpRoot == null) {
-                return;
-            }
-            final Path clRoot = (classLoaderName == null || classLoaderName.isEmpty())
-                    ? dumpRoot
-                    : dumpRoot.resolve(classLoaderName);
-            // Replace $->. because otherwise the files are invisible in IntelliJ
-            final String internalName = className.replace('.', '/').replace('$', '.');
-            final Path targetPath = clRoot.resolve(internalName + ".class");
-            if (cfgDumpClassesAsynchronously && classDumpingService != null) {
-                classDumpingService.submit(() -> {
-                    try {
-                        Files.createDirectories(targetPath.getParent());
-                        Files.write(
-                                targetPath,
-                                classBytes,
-                                StandardOpenOption.CREATE,
-                                StandardOpenOption.WRITE,
-                                StandardOpenOption.TRUNCATE_EXISTING);
-                    } catch (IOException e) {
-                        logger.warn("Could not save transformed class", e);
-                    }
-                });
-            } else {
-                Files.createDirectories(targetPath.getParent());
-                Files.write(
-                        targetPath,
-                        classBytes,
-                        StandardOpenOption.CREATE,
-                        StandardOpenOption.WRITE,
-                        StandardOpenOption.TRUNCATE_EXISTING);
-            }
-        } catch (IOException | RejectedExecutionException e) {
-            logger.warn("Could not save transformed class", e);
-        }
+        SharedConfig.dumpClass(classLoaderName, className, classBytes);
     }
 }
