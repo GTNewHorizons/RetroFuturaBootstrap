@@ -64,6 +64,7 @@ public class UnsafeReflectionRedirector {
             throws IllegalArgumentException, IllegalAccessException {
         if (field == fieldModifiers) {
             setModifiers(target, value);
+            return;
         }
         field.setInt(target, value);
     }
@@ -73,6 +74,7 @@ public class UnsafeReflectionRedirector {
             throws IllegalArgumentException, IllegalAccessException {
         if (field == fieldModifiers) {
             setModifiers(target, value);
+            return;
         }
         field.setShort(target, value);
     }
@@ -82,6 +84,7 @@ public class UnsafeReflectionRedirector {
             throws IllegalArgumentException, IllegalAccessException {
         if (field == fieldModifiers) {
             setModifiers(target, value);
+            return;
         }
         field.setByte(target, value);
     }
@@ -91,6 +94,7 @@ public class UnsafeReflectionRedirector {
             throws IllegalArgumentException, IllegalAccessException {
         if (field == fieldModifiers) {
             setModifiers(target, value);
+            return;
         }
         field.setChar(target, value);
     }

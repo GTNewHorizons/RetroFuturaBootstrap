@@ -42,6 +42,7 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
     final Set<String> REDIRECT_FIELD_METHODS = new HashSet<>();
 
     {
+        // Redirect set methods with a type that can be coerced to int, and get methods with types int can be coerced to
         REDIRECT_FIELD_METHODS.addAll(Arrays.asList(
                 "setInt(Ljava/lang/Object;I)V",
                 "setByte(Ljava/lang/Object;B)V",
