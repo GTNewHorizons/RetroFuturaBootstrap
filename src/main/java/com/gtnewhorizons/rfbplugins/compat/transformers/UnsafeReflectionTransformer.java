@@ -7,6 +7,7 @@ import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UnsafeReflectionRedirector;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
+import java.util.*;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import org.intellij.lang.annotations.Pattern;
@@ -38,6 +39,21 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
     final String FIELD_NAME = Type.getInternalName(Field.class);
     final byte[] FIELD_NAME_BYTES = FIELD_NAME.getBytes(StandardCharsets.UTF_8);
     final String REDIRECTION_NAME = Type.getInternalName(UnsafeReflectionRedirector.class);
+    final Set<String> REDIRECT_FIELD_METHODS = new HashSet<>();
+
+    {
+        REDIRECT_FIELD_METHODS.addAll(Arrays.asList(
+                "setInt(Ljava/lang/Object;I)V",
+                "setByte(Ljava/lang/Object;B)V",
+                "setShort(Ljava/lang/Object;S)V",
+                "setChar(Ljava/lang/Object;C)V",
+                "getInt(Ljava/lang/Object;)I",
+                "getLong(Ljava/lang/Object;)J",
+                "getFloat(Ljava/lang/Object;)F",
+                "getDouble(Ljava/lang/Object;)D",
+                "set(Ljava/lang/Object;Ljava/lang/Object;)V",
+                "get(Ljava/lang/Object;)Ljava/lang/Object"));
+    }
 
     @Override
     public boolean shouldTransformClass(
@@ -90,26 +106,12 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
                         insn.owner = REDIRECTION_NAME;
                         insn.desc = "(Ljava/lang/Class;)[Ljava/lang/reflect/Field;";
                     } else if (insn.owner.equals(FIELD_NAME)
-                            && insn.name.equals("setInt")
-                            && insn.desc.equals("(Ljava/lang/Object;I)V")) {
-                        // setInt(Ljava/lang/reflect/Field;Ljava/lang/Object;I)V
+                            && REDIRECT_FIELD_METHODS.contains(insn.name + insn.desc)) {
+                        // add a Field argument at the start
+                        String newDesc = "(Ljava/lang/reflect/Field;" + insn.desc.substring(1);
                         insn.setOpcode(Opcodes.INVOKESTATIC);
                         insn.owner = REDIRECTION_NAME;
-                        insn.desc = "(Ljava/lang/reflect/Field;Ljava/lang/Object;I)V";
-                    } else if (insn.owner.equals(FIELD_NAME)
-                            && insn.name.equals("getInt")
-                            && insn.desc.equals("(Ljava/lang/Object;)I")) {
-                        // getInt(Ljava/lang/reflect/Field;Ljava/lang/Object;)I
-                        insn.setOpcode(Opcodes.INVOKESTATIC);
-                        insn.owner = REDIRECTION_NAME;
-                        insn.desc = "(Ljava/lang/reflect/Field;Ljava/lang/Object;)I";
-                    } else if (insn.owner.equals(FIELD_NAME)
-                            && insn.name.equals("set")
-                            && insn.desc.equals("(Ljava/lang/Object;Ljava/lang/Object;)V")) {
-                        // set(Ljava/lang/reflect/Field;Ljava/lang/Object;Ljava/lang/Object;)V
-                        insn.setOpcode(Opcodes.INVOKESTATIC);
-                        insn.owner = REDIRECTION_NAME;
-                        insn.desc = "(Ljava/lang/reflect/Field;Ljava/lang/Object;Ljava/lang/Object;)V";
+                        insn.desc = newDesc;
                     }
                 }
             }
