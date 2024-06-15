@@ -31,6 +31,8 @@ public interface FastClassAccessor {
     @Nullable
     String binarySuperName();
 
+    String @NotNull [] binaryInterfaceNames();
+
     static OfLoaded ofLoaded(Class<?> loadedClass) {
         return new OfLoaded(loadedClass);
     }
@@ -95,6 +97,11 @@ public interface FastClassAccessor {
         public @Nullable String binarySuperName() {
             return handle.superName;
         }
+
+        @Override
+        public String @NotNull [] binaryInterfaceNames() {
+            return handle.interfaces == null ? new String[0] : handle.interfaces.toArray(new String[0]);
+        }
     }
 
     final class OfLoaded implements FastClassAccessor {
@@ -153,6 +160,16 @@ public interface FastClassAccessor {
         public @Nullable String binarySuperName() {
             final Class<?> superclass = handle.getSuperclass();
             return superclass == null ? null : superclass.getName().replace('.', '/');
+        }
+
+        @Override
+        public String @NotNull [] binaryInterfaceNames() {
+            Class<?>[] interfaces = handle.getInterfaces();
+            String[] binaryInterfaceNames = new String[interfaces.length];
+            for (int i = 0; i < interfaces.length; i++) {
+                binaryInterfaceNames[i] = interfaces[i].getName().replace('.', '/');
+            }
+            return binaryInterfaceNames;
         }
     }
 }

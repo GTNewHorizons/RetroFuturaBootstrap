@@ -26,8 +26,10 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     public final int thisClassIndex;
     public final int superClassIndex;
     public final int interfacesCount;
+    public final int @NotNull [] interfaceIndices;
     public final @NotNull String binaryThisName;
     public final @Nullable String binarySuperName;
+    public final String @NotNull [] binaryInterfaceNames;
 
     /**
      * Attempts to parse a class header.
@@ -65,6 +67,9 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         this.thisClassIndex = u16(bytes, cpOff + Offsets.pastCpThisClassU16);
         this.superClassIndex = u16(bytes, cpOff + Offsets.pastCpSuperClassU16);
         this.interfacesCount = u16(bytes, cpOff + Offsets.pastCpInterfacesCountU16);
+        this.interfaceIndices = new int[this.interfacesCount];
+        this.binaryInterfaceNames = new String[this.interfacesCount];
+
         // Parse this&super names
         if (constantPoolEntryTypes[thisClassIndex - 1] != ConstantPoolEntryTypes.Class) {
             throw new IllegalArgumentException("This class index is not a class ref");
@@ -86,6 +91,24 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
                 throw new IllegalArgumentException("Super class index does not point to a UTF8 entry");
             }
             this.binarySuperName = modifiedUtf8(bytes, constantPoolEntryOffsets[superNameIndex - 1] + 1);
+        }
+
+        // Parse interface names
+        for (int i = 0; i < this.interfacesCount; i++) {
+            final int interfaceOffset = cpOff + Offsets.pastCpInterfacesList + i * 2;
+            final int interfaceIndex = u16(bytes, interfaceOffset);
+            if (constantPoolEntryTypes[interfaceIndex - 1] != ConstantPoolEntryTypes.Class) {
+                throw new IllegalArgumentException("Interface " + i + " index is not a class ref");
+            }
+            final int interfaceNameIndex = u16(bytes, constantPoolEntryOffsets[interfaceIndex - 1] + 1);
+            if (constantPoolEntryTypes[interfaceNameIndex - 1] != ConstantPoolEntryTypes.Utf8) {
+                throw new IllegalArgumentException("Interface " + i + " index does not point to a UTF8 entry");
+            }
+            final String binaryInterfaceName =
+                    modifiedUtf8(bytes, constantPoolEntryOffsets[interfaceNameIndex - 1] + 1);
+
+            this.interfaceIndices[i] = interfaceIndex;
+            this.binaryInterfaceNames[i] = binaryInterfaceName;
         }
     }
 
@@ -166,6 +189,8 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         public static final int pastCpSuperClassU16 = pastCpThisClassU16 + 2;
         /** The value of the interfaces_count item gives the number of direct superinterfaces of this class or interface type */
         public static final int pastCpInterfacesCountU16 = pastCpSuperClassU16 + 2;
+
+        public static final int pastCpInterfacesList = pastCpInterfacesCountU16 + 2;
     }
 
     public enum ConstantPoolEntryTypes {
@@ -335,5 +360,10 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     @Override
     public @Nullable String binarySuperName() {
         return binarySuperName;
+    }
+
+    @Override
+    public String @NotNull [] binaryInterfaceNames() {
+        return binaryInterfaceNames;
     }
 }
