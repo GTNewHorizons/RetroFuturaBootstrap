@@ -84,45 +84,48 @@ public class SafeAsmClassWriter extends ClassWriter {
 
     private @Nullable InheritanceNode getInheritanceInfo(ExtensibleClassLoader loader, String type) {
         InheritanceNode node = inheritanceCache.get(type);
-        if (node == null) {
-            FastClassAccessor typeAccessor = loader.findClassMetadata(type.replace('/', '.'));
-            if (typeAccessor == null) {
-                Main.logger.warn("Could not find type {} during inheritance search", type);
-                return null;
-            }
-
-            Set<InheritanceNode> allSuperClasses = new HashSet<>();
-            String superType = typeAccessor.binarySuperName();
-            InheritanceNode superClass;
-            // account for Object
-            if (superType != null) {
-                superClass = getInheritanceInfo(loader, superType);
-                if (superClass != null) {
-                    allSuperClasses.addAll(superClass.allSuperClasses);
-                }
-            } else {
-                superClass = null;
-            }
-
-            List<InheritanceNode> interfaces = new ArrayList<>();
-            for (String interfaceType : typeAccessor.binaryInterfaceNames()) {
-                InheritanceNode iface = getInheritanceInfo(loader, interfaceType);
-                if (iface != null) {
-                    interfaces.add(iface);
-                    allSuperClasses.addAll(iface.allSuperClasses);
-                }
-            }
-
-            node = new InheritanceNode(typeAccessor, superClass, interfaces, allSuperClasses);
-            inheritanceCache.put(type, node);
+        if (node != null) {
+            return node;
         }
+
+        FastClassAccessor typeAccessor = loader.findClassMetadata(type.replace('/', '.'));
+        if (typeAccessor == null) {
+            Main.logger.warn("Could not find type {} during inheritance search", type);
+            inheritanceCache.put(type, null);
+            return null;
+        }
+
+        Set<InheritanceNode> allSuperClasses = new HashSet<>();
+        String superType = typeAccessor.binarySuperName();
+        InheritanceNode superClass;
+        // account for Object
+        if (superType != null) {
+            superClass = getInheritanceInfo(loader, superType);
+            if (superClass != null) {
+                allSuperClasses.addAll(superClass.allSuperClasses);
+            }
+        } else {
+            superClass = null;
+        }
+
+        List<InheritanceNode> interfaces = new ArrayList<>();
+        for (String interfaceType : typeAccessor.binaryInterfaceNames()) {
+            InheritanceNode iface = getInheritanceInfo(loader, interfaceType);
+            if (iface != null) {
+                interfaces.add(iface);
+                allSuperClasses.addAll(iface.allSuperClasses);
+            }
+        }
+
+        node = new InheritanceNode(typeAccessor, superClass, interfaces, allSuperClasses);
+        inheritanceCache.put(type, node);
         return node;
     }
 
     /**
      * Some inheritance metadata. Can be compared with == as long as they're from the same ClassWriter because of caching.
      */
-    private static class InheritanceNode {
+    private static final class InheritanceNode {
         final @Nullable InheritanceNode superClass;
         final @NotNull List<InheritanceNode> interfaces;
         final @NotNull FastClassAccessor accessor;

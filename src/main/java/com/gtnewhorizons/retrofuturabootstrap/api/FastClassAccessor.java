@@ -1,6 +1,9 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -31,7 +34,9 @@ public interface FastClassAccessor {
     @Nullable
     String binarySuperName();
 
-    String @NotNull [] binaryInterfaceNames();
+    /** Binary (slash-separated packages) names of the implemented interfaces, list is unmodifiable */
+    @NotNull
+    List<@NotNull String> binaryInterfaceNames();
 
     static OfLoaded ofLoaded(Class<?> loadedClass) {
         return new OfLoaded(loadedClass);
@@ -99,13 +104,16 @@ public interface FastClassAccessor {
         }
 
         @Override
-        public String @NotNull [] binaryInterfaceNames() {
-            return handle.interfaces == null ? new String[0] : handle.interfaces.toArray(new String[0]);
+        public @NotNull List<@NotNull String> binaryInterfaceNames() {
+            return handle.interfaces == null
+                    ? Collections.emptyList()
+                    : Collections.unmodifiableList(handle.interfaces);
         }
     }
 
     final class OfLoaded implements FastClassAccessor {
         public final Class<?> handle;
+        private @Nullable List<@NotNull String> interfacesCache = null;
 
         private OfLoaded(Class<?> handle) {
             this.handle = handle;
@@ -163,13 +171,18 @@ public interface FastClassAccessor {
         }
 
         @Override
-        public String @NotNull [] binaryInterfaceNames() {
-            Class<?>[] interfaces = handle.getInterfaces();
-            String[] binaryInterfaceNames = new String[interfaces.length];
-            for (int i = 0; i < interfaces.length; i++) {
-                binaryInterfaceNames[i] = interfaces[i].getName().replace('.', '/');
+        public @NotNull List<@NotNull String> binaryInterfaceNames() {
+            if (interfacesCache != null) {
+                return interfacesCache;
             }
-            return binaryInterfaceNames;
+
+            Class<?>[] interfaces = handle.getInterfaces();
+            List<String> binaryInterfaceNames = new ArrayList<>(interfaces.length);
+            for (Class<?> iface : interfaces) {
+                binaryInterfaceNames.add(iface.getName().replace('.', '/'));
+            }
+            interfacesCache = Collections.unmodifiableList(binaryInterfaceNames);
+            return interfacesCache;
         }
     }
 }

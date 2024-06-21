@@ -3,6 +3,9 @@ package com.gtnewhorizons.retrofuturabootstrap.api;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -29,7 +32,8 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     public final int @NotNull [] interfaceIndices;
     public final @NotNull String binaryThisName;
     public final @Nullable String binarySuperName;
-    public final String @NotNull [] binaryInterfaceNames;
+    /** List is unmodifiable */
+    public final @NotNull List<@NotNull String> binaryInterfaceNames;
 
     /**
      * Attempts to parse a class header.
@@ -68,7 +72,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         this.superClassIndex = u16(bytes, cpOff + Offsets.pastCpSuperClassU16);
         this.interfacesCount = u16(bytes, cpOff + Offsets.pastCpInterfacesCountU16);
         this.interfaceIndices = new int[this.interfacesCount];
-        this.binaryInterfaceNames = new String[this.interfacesCount];
+        List<String> interfaceNames = new ArrayList<>(this.interfacesCount);
 
         // Parse this&super names
         if (constantPoolEntryTypes[thisClassIndex - 1] != ConstantPoolEntryTypes.Class) {
@@ -108,8 +112,9 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
                     modifiedUtf8(bytes, constantPoolEntryOffsets[interfaceNameIndex - 1] + 1);
 
             this.interfaceIndices[i] = interfaceIndex;
-            this.binaryInterfaceNames[i] = binaryInterfaceName;
+            interfaceNames.add(binaryInterfaceName);
         }
+        this.binaryInterfaceNames = Collections.unmodifiableList(interfaceNames);
     }
 
     /** Helpers to read big-endian values from class files. */
@@ -363,7 +368,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     }
 
     @Override
-    public String @NotNull [] binaryInterfaceNames() {
+    public @NotNull List<@NotNull String> binaryInterfaceNames() {
         return binaryInterfaceNames;
     }
 }
