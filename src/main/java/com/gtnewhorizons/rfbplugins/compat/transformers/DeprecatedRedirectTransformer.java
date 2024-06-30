@@ -1,35 +1,52 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.SharedConfig;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
-import com.gtnewhorizons.retrofuturabootstrap.asm.DummyCompiler;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.jar.Manifest;
+import java.util.stream.Stream;
 import org.intellij.lang.annotations.Pattern;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.commons.ClassRemapper;
+import org.objectweb.asm.commons.Remapper;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
 
 /**
  * Redirects various deprecated Java classes/methods to dummy implementations.
  */
-public class DeprecatedRedirectTransformer implements RfbClassTransformer {
+public class DeprecatedRedirectTransformer extends Remapper implements RfbClassTransformer {
+
+    public DeprecatedRedirectTransformer() {
+        excludedPackages = Stream.concat(Arrays.stream(fromPrefixes), Arrays.stream(toPrefixes))
+                .map(s -> s.replace('/', '.'))
+                .toArray(String[]::new);
+        quickScans = Arrays.stream(fromPrefixes)
+                .map(s -> s.getBytes(StandardCharsets.UTF_8))
+                .toArray(byte[][]::new);
+    }
+
     @Pattern("[a-z0-9-]+")
     @Override
     public @NotNull String id() {
         return "undeprecator";
     }
 
-    final String COMPILER_NAME = "java/lang/Compiler";
-    final byte[] COMPILER_NAME_BYTES = COMPILER_NAME.getBytes(StandardCharsets.UTF_8);
-    final String COMPILER_REDIRECTION_NAME = Type.getInternalName(DummyCompiler.class);
+    @Override
+    public @NotNull String @Nullable [] additionalExclusions() {
+        return excludedPackages;
+    }
+
+    final String[] fromPrefixes = new String[] {"java/lang/Compiler"};
+    final String[] toPrefixes = new String[] {"com/gtnewhorizons/retrofuturabootstrap/asm/DummyCompiler"};
+    final byte[][] quickScans;
+    final String[] excludedPackages;
 
     @Override
     public boolean shouldTransformClass(
@@ -48,8 +65,21 @@ public class DeprecatedRedirectTransformer implements RfbClassTransformer {
             classVersion = 8;
         }
 
-        return (classVersion < Opcodes.V21
-                && ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), COMPILER_NAME_BYTES));
+        if (classVersion >= Opcodes.V21) {
+            return false;
+        }
+
+        final byte[] original = classNode.getOriginalBytes();
+        if (original == null) {
+            return false;
+        }
+        for (final byte[] pattern : quickScans) {
+            if (ClassHeaderMetadata.hasSubstring(original, pattern)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     @Override
@@ -59,22 +89,34 @@ public class DeprecatedRedirectTransformer implements RfbClassTransformer {
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
-        final ClassNode node = classNode.getNode();
-        if (node == null || node.methods == null) {
+        final ClassNode inputNode = classNode.getNode();
+        if (inputNode == null) {
             return;
         }
-        for (MethodNode method : node.methods) {
-            if (method.instructions == null) {
-                continue;
-            }
-            for (AbstractInsnNode rawInsn : method.instructions) {
-                if (rawInsn.getType() == AbstractInsnNode.METHOD_INSN) {
-                    final MethodInsnNode insn = (MethodInsnNode) rawInsn;
-                    if (insn.owner.equals(COMPILER_NAME)) {
-                        insn.owner = COMPILER_REDIRECTION_NAME;
-                    }
-                }
+
+        final ClassNode outputNode = new ClassNode();
+        final ClassVisitor visitor = new ClassRemapper(outputNode, this);
+
+        try {
+            inputNode.accept(visitor);
+        } catch (Exception e) {
+            SharedConfig.logWarning("Couldn't remap class " + className, e);
+            return;
+        }
+
+        classNode.setNode(outputNode);
+    }
+
+    @Override
+    public String map(String typeName) {
+        if (typeName == null) {
+            return null;
+        }
+        for (int pfx = 0; pfx < fromPrefixes.length; pfx++) {
+            if (typeName.startsWith(fromPrefixes[pfx])) {
+                return toPrefixes[pfx] + typeName.substring(fromPrefixes[pfx].length());
             }
         }
+        return typeName;
     }
 }
