@@ -86,7 +86,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
 
     /** Invoked by Java itself */
     public RfbSystemClassLoader(ClassLoader parent) throws ReflectiveOperationException {
-        this("RFB-System", getUrlClasspathEntries(parent));
+        this("System", getUrlClasspathEntries(parent));
         Thread.currentThread().setContextClassLoader(this);
     }
 

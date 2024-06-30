@@ -133,7 +133,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
      * @param sources The initial classpath
      */
     public LaunchClassLoader(URL[] sources) {
-        super("RFB-Launch", sources, getPlatformClassLoader());
+        super("Launch", sources, getPlatformClassLoader());
         LogWrapper.configureLogging();
         this.sources = new ArrayList<>(Arrays.asList(sources));
         classLoaderExceptions.addAll(Arrays.asList(
