@@ -163,7 +163,12 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
      */
     public void registerTransformer(String transformerClassName) {
         try {
-            Class<?> xformerClass = Class.forName(transformerClassName, true, this);
+            Class<?> xformerClass;
+            if (Main.launchLoader != null) {
+                xformerClass = Main.launchLoader.findClass(transformerClassName);
+            } else {
+                xformerClass = Class.forName(transformerClassName, true, this);
+            }
             if (!IClassTransformer.class.isAssignableFrom(xformerClass)) {
                 LogWrapper.severe(
                         "Tried to register a transformer {} which does not implement IClassTransformer",
