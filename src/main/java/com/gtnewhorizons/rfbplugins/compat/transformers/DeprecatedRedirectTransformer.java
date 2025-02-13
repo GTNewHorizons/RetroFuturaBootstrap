@@ -16,7 +16,10 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.commons.Remapper;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 
 /**
  * Redirects various deprecated Java classes/methods to dummy implementations.
@@ -43,8 +46,11 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         return excludedPackages;
     }
 
-    final String[] fromPrefixes = new String[] {"java/lang/Compiler"};
-    final String[] toPrefixes = new String[] {"com/gtnewhorizons/retrofuturabootstrap/asm/DummyCompiler"};
+    final String[] fromPrefixes = new String[] {"java/lang/Compiler", "java/lang/SecurityManager"};
+    final String[] toPrefixes = new String[] {
+        "com/gtnewhorizons/retrofuturabootstrap/asm/DummyCompiler",
+        "com/gtnewhorizons/retrofuturabootstrap/SecurityManager"
+    };
     final byte[][] quickScans;
     final String[] excludedPackages;
 
@@ -102,6 +108,27 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         } catch (Exception e) {
             SharedConfig.logWarning("Couldn't remap class " + className, e);
             return;
+        }
+
+        // Remap SecurityManager getter/setter
+        if (outputNode.methods != null) {
+            for (final MethodNode mn : outputNode.methods) {
+                if (mn.instructions == null) {
+                    continue;
+                }
+                for (final AbstractInsnNode insn : mn.instructions) {
+                    if (insn.getOpcode() != Opcodes.INVOKESTATIC) {
+                        continue;
+                    }
+                    final MethodInsnNode minsn = (MethodInsnNode) insn;
+                    if (!"java/lang/System".equals(minsn.owner)) {
+                        continue;
+                    }
+                    if ("getSecurityManager".equals(minsn.name) || "setSecurityManager".equals(minsn.name)) {
+                        minsn.owner = "com/gtnewhorizons/retrofuturabootstrap/SecurityManager";
+                    }
+                }
+            }
         }
 
         classNode.setNode(outputNode);
