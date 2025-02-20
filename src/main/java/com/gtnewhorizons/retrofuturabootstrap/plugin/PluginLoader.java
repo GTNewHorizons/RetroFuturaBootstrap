@@ -126,6 +126,7 @@ public final class PluginLoader {
                             .collect(Collectors.toList());
                     Main.mutateRfbTransformers(list -> list.addAll(toAdd));
                     for (RfbClassTransformerHandle newlyRegistered : toAdd) {
+                        handle.registerAdditionalTransformer(newlyRegistered);
                         newlyRegistered.transformer().onRegistration(Objects.requireNonNull(Main.compatLoader));
                         newlyRegistered.transformer().onRegistration(Objects.requireNonNull(Main.launchLoader));
                     }
@@ -179,6 +180,7 @@ public final class PluginLoader {
                             new RfbClassTransformerHandle(handle.metadata(), handle.plugin(), xformer);
                     newTransformers.add(xhandle);
                     toRegister.add(xhandle);
+                    handle.registerAdditionalTransformer(xhandle);
                 }
             }
             final String[] emptyStrA = new String[0];
