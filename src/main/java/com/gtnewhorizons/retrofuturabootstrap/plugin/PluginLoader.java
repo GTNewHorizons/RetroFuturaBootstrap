@@ -265,6 +265,10 @@ public final class PluginLoader {
         });
     }
 
+    /**
+     * Locate dependencies for all plugins.
+     * @param pluginMetadata List of plugin metadata to locate dependencies for.  Will be modified in place.
+     */
     private static void locateDependencies(List<RfbPluginMetadata> pluginMetadata) {
         final List<RfbDependencyLocator> locators = RfbServices.getDependencyLocators();
         for (int i = 0; i < pluginMetadata.size(); i++) {
