@@ -271,7 +271,7 @@ public final class PluginLoader {
      */
     private static void locateDependencies(List<RfbPluginMetadata> pluginMetadata) {
         final List<RfbDependencyLocator> locators = RfbServices.getDependencyLocators();
-        if(locators.size() == 0) return;
+        if (locators.size() == 0) return;
 
         for (int i = 0; i < pluginMetadata.size(); i++) {
             final RfbPluginMetadata meta = pluginMetadata.get(i);
