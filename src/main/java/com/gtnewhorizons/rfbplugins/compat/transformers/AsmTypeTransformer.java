@@ -77,7 +77,7 @@ public class AsmTypeTransformer implements RfbClassTransformer {
                 if (insn.getType() == AbstractInsnNode.METHOD_INSN) {
                     MethodInsnNode mi = (MethodInsnNode) insn;
                     if ("org/objectweb/asm/Type".equals(mi.owner)
-                            && "getType".equals(mi.name)
+                            && ("getType".equals(mi.name) || "getReturnType".equals(mi.name))
                             && "(Ljava/lang/String;)Lorg/objectweb/asm/Type;".equals(mi.desc)) {
                         mi.owner = "com/gtnewhorizons/retrofuturabootstrap/asm/SafeAsmType";
                     }
