@@ -35,7 +35,7 @@ spotless {
   }
 }
 
-val asmVersion = "9.6"
+val asmVersion = "9.7.1"
 
 dependencies {
   testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")

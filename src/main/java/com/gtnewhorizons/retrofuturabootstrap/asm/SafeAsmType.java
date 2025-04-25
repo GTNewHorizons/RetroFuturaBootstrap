@@ -18,4 +18,15 @@ public class SafeAsmType {
             return Type.getObjectType(desc);
         }
     }
+
+    /**
+     * Redirection target for {@link Type#getReturnType(String)}, that will silently process invalid descriptors like ASM5 did.
+     */
+    public static Type getReturnType(String desc) {
+        try {
+            return Type.getReturnType(desc);
+        } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
+            return getType(desc.substring(desc.indexOf(')') + 1));
+        }
+    }
 }

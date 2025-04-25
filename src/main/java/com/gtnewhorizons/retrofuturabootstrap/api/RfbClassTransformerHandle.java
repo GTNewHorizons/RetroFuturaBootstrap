@@ -100,7 +100,7 @@ public final class RfbClassTransformerHandle {
     }
 
     /**
-     * @return List of class name prefixes associated with this transformer.
+     * @return List of class name prefixes associated with this transformer. Guaranteed to be mutable.
      */
     public @NotNull List<@NotNull String> exclusions() {
         return exclusions;
