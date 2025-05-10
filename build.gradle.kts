@@ -1,9 +1,9 @@
 plugins {
   `java-library`
-  id("com.palantir.git-version") version "3.0.0"
+  id("com.palantir.git-version") version "3.2.0"
   `maven-publish`
-  id("com.diffplug.spotless") version "6.23.3"
-  id("com.github.gmazzo.buildconfig") version "4.2.0"
+  id("com.diffplug.spotless") version "7.0.3"
+  id("com.github.gmazzo.buildconfig") version "5.6.5"
 }
 
 group = "com.gtnewhorizons.retrofuturabootstrap"
@@ -24,13 +24,12 @@ spotless {
     toggleOffOn()
     importOrder()
     removeUnusedImports()
-    palantirJavaFormat("2.39.0")
+    palantirJavaFormat("2.66.0")
   }
   kotlinGradle {
     toggleOffOn()
-    ktfmt("0.39")
+    ktfmt("0.54")
     trimTrailingWhitespace()
-    indentWithSpaces(4)
     endWithNewline()
   }
 }
