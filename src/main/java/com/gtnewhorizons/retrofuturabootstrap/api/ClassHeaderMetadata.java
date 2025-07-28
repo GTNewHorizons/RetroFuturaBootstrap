@@ -1,13 +1,12 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
+import com.gtnewhorizons.retrofuturabootstrap.Main;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import com.gtnewhorizons.retrofuturabootstrap.Main;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
