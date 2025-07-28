@@ -52,6 +52,9 @@ public class Main {
     /** Controlled by system property {@code rfb.dumpClassesAsynchronously=true}, if the class dumps are done from another Thread to avoid slow IO */
     public static final boolean cfgDumpClassesAsynchronously = SharedConfig.cfgDumpClassesAsynchronously;
 
+    /** Controlled by system property {@code rfb.unsafeClassValidation=true}, if classpath contains obfuscated classes with broken CAFEBABE magic number to avoid crash */
+    public static final boolean cfgUnsafeClassValidation = SharedConfig.cfgUnsafeClassValidation;
+
     /** The target class dumping directory, initialized during commandline option parsing. */
     public static @NotNull AtomicReference<@Nullable Path> classDumpDirectory = SharedConfig.classDumpDirectory;
 

@@ -12,6 +12,7 @@ Some RFB features can be controlled by setting java system properties, like with
  - `-Drfb.dumpLoadedClasses=true` - will dump post-transform classes as they load into `RFB_CLASS_DUMP[_NUMBER]` directories in your `.minecraft` directory.
  - `-Drfb.dumpLoadedClassesPerTransformer=true` - will dump classes like above, but save a separate file for each class transformer that runs and modifies the class.
  - `-Drfb.dumpClassesAsynchronously=false` - by default it's `true`, if changed to `false` dumping classes will happen on the thread that does the loading instead of in the background.
+ - `-Drfb.unsafeClassValidation=true` - will disable class CAFEBABE "magic" number validation.
 
 ## Plugins
 

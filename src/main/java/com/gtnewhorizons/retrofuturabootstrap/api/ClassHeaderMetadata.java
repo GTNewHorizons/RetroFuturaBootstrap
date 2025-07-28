@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import com.gtnewhorizons.retrofuturabootstrap.Main;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -273,6 +275,9 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     public static boolean isValidClass(byte @Nullable [] classBytes) {
         if (classBytes == null) {
             return false;
+        }
+        if (Main.cfgUnsafeClassValidation) {
+            return true;
         }
         if (classBytes.length < Offsets.constantPoolStart + Offsets.pastCpSuperClassU16) {
             return false;
