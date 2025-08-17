@@ -12,16 +12,21 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +50,10 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             (parent instanceof RfbSystemClassLoader) ? ((RfbSystemClassLoader) parent) : null;
     /** RFB: Reference to the platform class loader that can load JRE/JDK classes */
     private static final ClassLoader rfb$platformLoader = getPlatformClassLoader();
+
+    public RfbSystemClassLoader getRfbParent() {
+        return rfb$parent;
+    }
 
     /** An ArrayList of all class transformers used, mutable, often modified via reflection */
     private List<IClassTransformer> transformers = new ArrayList<>(2);
@@ -393,6 +402,204 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         }
     }
 
+    private Map<String, Long> timings = new ConcurrentHashMap<>();
+
+    private byte[] timeTransform(IClassTransformer xformer, String name, String transformedName, byte[] basicClass) {
+        long start = System.nanoTime();
+        byte[] newKlass = xformer.transform(name, transformedName, basicClass);
+        long end = System.nanoTime();
+        long duration = end - start;
+
+        Thread currentThread = Thread.currentThread();
+        String threadName = currentThread.getName();
+        String side = determineSide(threadName);
+
+        String transformerKey = xformer.getClass().getName();
+        String perClassKey = xformer.getClass().getName() + "|" + transformedName;
+        String threadKey = xformer.getClass().getName() + "|thread:" + threadName;
+        String sideKey = xformer.getClass().getName() + "|side:" + side;
+        String perClassThreadKey = xformer.getClass().getName() + "|" + transformedName + "|thread:" + threadName;
+        String perClassSideKey = xformer.getClass().getName() + "|" + transformedName + "|side:" + side;
+
+        timings.put(transformerKey, timings.getOrDefault(transformerKey, 0L) + duration);
+        timings.put(perClassKey, timings.getOrDefault(perClassKey, 0L) + duration);
+        timings.put(threadKey, timings.getOrDefault(threadKey, 0L) + duration);
+        timings.put(sideKey, timings.getOrDefault(sideKey, 0L) + duration);
+        timings.put(perClassThreadKey, timings.getOrDefault(perClassThreadKey, 0L) + duration);
+        timings.put(perClassSideKey, timings.getOrDefault(perClassSideKey, 0L) + duration);
+
+        return newKlass;
+    }
+
+    /**
+     * Determines the logical side (client/server/unknown) based on thread name
+     */
+    private String determineSide(String threadName) {
+        if (threadName == null) return "unknown";
+        String lowerName = threadName.toLowerCase();
+        if (lowerName.contains("server") || lowerName.contains("netty server")) {
+            return "server";
+        } else if (lowerName.contains("client") || lowerName.contains("main") || lowerName.contains("render")) {
+            return "client";
+        }
+        return "unknown";
+    }
+
+    /**
+     * Converts a time duration in nanoseconds to a human-readable format.
+     *
+     * @param time The time duration in nanoseconds
+     * @return A human-readable string representation of the time
+     */
+    private String formatTime(long time) {
+        if (time < 1000) {
+            return time + " ns";
+        } else if (time < 1_000_000) {
+            return String.format("%.2f μs", time / 1000.0);
+        } else if (time < 1_000_000_000) {
+            return String.format("%.2f ms", time / 1_000_000.0);
+        } else {
+            return String.format("%.3f s", time / 1_000_000_000.0);
+        }
+    }
+
+
+    public void logTimings() {
+        Map<String, Long> totalTimes = new HashMap<>();
+        Map<String, Map<String, Long>> perClassTimes = new HashMap<>();
+        Map<String, Map<String, Long>> threadTimes = new HashMap<>();
+        Map<String, Map<String, Long>> sideTimes = new HashMap<>();
+        Map<String, Map<String, Long>> detailedTimes = new HashMap<>();
+
+        // Create defensive copy to avoid ConcurrentModificationException
+        Map<String, Long> timingsCopy = new HashMap<>(timings);
+
+        // Categorize timing data
+        timingsCopy.forEach((key, time) -> {
+            String[] parts = key.split("\\|");
+            String transformer = parts[0];
+
+            if (parts.length == 1) {
+                // Total timing
+                totalTimes.put(transformer, time);
+            } else if (parts.length == 2) {
+                String secondPart = parts[1];
+                if (secondPart.startsWith("thread:")) {
+                    // Thread timing
+                    String threadName = secondPart.substring(7);
+                    threadTimes.computeIfAbsent(transformer, k -> new HashMap<>()).put(threadName, time);
+                } else if (secondPart.startsWith("side:")) {
+                    // Side timing
+                    String side = secondPart.substring(5);
+                    sideTimes.computeIfAbsent(transformer, k -> new HashMap<>()).put(side, time);
+                } else {
+                    // Per-class timing
+                    perClassTimes.computeIfAbsent(transformer, k -> new HashMap<>()).put(secondPart, time);
+                }
+            } else if (parts.length >= 3) {
+                // Detailed timing (class + thread/side)
+                String className = parts[1];
+                String context = parts[2];
+                String detailKey = className + "|" + context;
+                detailedTimes.computeIfAbsent(transformer, k -> new HashMap<>()).put(detailKey, time);
+            }
+        });
+
+        // Write CSV files
+        try {
+            Path gameDir = Main.initialGameDir != null ? Main.initialGameDir.toPath() : Paths.get(".");
+            Path csvDir = gameDir.resolve("csv");
+            Files.createDirectories(csvDir);
+
+            // Write total times CSV
+            Path totalTimesFile = csvDir.resolve("launcher_transformer_total_times.csv");
+            try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(totalTimesFile))) {
+                writer.println("Transformer,Time (ns),Time (formatted)");
+                totalTimes.entrySet().stream()
+                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                    .forEach(entry -> writer.printf("%s,%d,%s%n", 
+                        entry.getKey(), entry.getValue(), formatTime(entry.getValue())));
+            }
+
+            // Write per-class times CSV
+            Path perClassTimesFile = csvDir.resolve("launcher_transformer_per_class_times.csv");
+            try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(perClassTimesFile))) {
+                writer.println("Transformer,Class,Time (ns),Time (formatted)");
+                perClassTimes.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(transformerEntry -> {
+                        String transformer = transformerEntry.getKey();
+                        transformerEntry.getValue().entrySet().stream()
+                            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                            .forEach(classEntry -> writer.printf("%s,%s,%d,%s%n",
+                                transformer, classEntry.getKey(), classEntry.getValue(), formatTime(classEntry.getValue())));
+                    });
+            }
+
+            // Write thread times CSV
+            Path threadTimesFile = csvDir.resolve("launcher_transformer_thread_times.csv");
+            try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(threadTimesFile))) {
+                writer.println("Transformer,Thread,Time (ns),Time (formatted)");
+                threadTimes.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(transformerEntry -> {
+                        String transformer = transformerEntry.getKey();
+                        transformerEntry.getValue().entrySet().stream()
+                            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                            .forEach(threadEntry -> writer.printf("%s,%s,%d,%s%n",
+                                transformer, threadEntry.getKey(), threadEntry.getValue(), formatTime(threadEntry.getValue())));
+                    });
+            }
+
+            // Write side times CSV
+            Path sideTimesFile = csvDir.resolve("launcher_transformer_side_times.csv");
+            try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(sideTimesFile))) {
+                writer.println("Transformer,Side,Time (ns),Time (formatted)");
+                sideTimes.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(transformerEntry -> {
+                        String transformer = transformerEntry.getKey();
+                        transformerEntry.getValue().entrySet().stream()
+                            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                            .forEach(sideEntry -> writer.printf("%s,%s,%d,%s%n",
+                                transformer, sideEntry.getKey(), sideEntry.getValue(), formatTime(sideEntry.getValue())));
+                    });
+            }
+
+            // Write detailed times CSV
+            Path detailedTimesFile = csvDir.resolve("launcher_transformer_detailed_times.csv");
+            try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(detailedTimesFile))) {
+                writer.println("Transformer,Class,Context,Time (ns),Time (formatted)");
+                detailedTimes.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(transformerEntry -> {
+                        String transformer = transformerEntry.getKey();
+                        transformerEntry.getValue().entrySet().stream()
+                            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                            .forEach(detailEntry -> {
+                                String[] detailParts = detailEntry.getKey().split("\\|", 2);
+                                String className = detailParts[0];
+                                String context = detailParts.length > 1 ? detailParts[1] : "";
+                                writer.printf("%s,%s,%s,%d,%s%n",
+                                    transformer, className, context, detailEntry.getValue(), formatTime(detailEntry.getValue()));
+                            });
+                    });
+            }
+
+            LogWrapper.rfb$logger.info("Launch timing data written to {}, {}, {}, {}, {}", 
+                totalTimesFile, perClassTimesFile, threadTimesFile, sideTimesFile, detailedTimesFile);
+        } catch (IOException e) {
+            LogWrapper.rfb$logger.warn("Failed to write Launch timing CSV files", e);
+        }
+
+        // Log total times only
+        totalTimes.forEach((transformer, time) -> {
+            LogWrapper.rfb$logger.info("Transformer {} total time: {}", transformer, formatTime(time));
+        });
+
+        timings.clear();
+    }
+
     /**
      * <ol>
      *     <li>For each transformer on the transformer list, transform basicClass</li>
@@ -405,7 +612,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             try {
                 byte[] newKlass;
                 try {
-                    newKlass = xformer.transform(name, transformedName, basicClass);
+                    newKlass = timeTransform(xformer, name, transformedName, basicClass);
                 } catch (Exception e) {
                     // retry in case of invalid frames written
                     if (e.getStackTrace() != null
@@ -413,7 +620,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                             && e.getStackTrace()[0].getClassName().contains("asm.MethodWriter")) {
                         SafeAsmClassWriter.forcedFlags.set(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
                         SafeAsmClassWriter.forcedOriginalClass.set(basicClass);
-                        newKlass = xformer.transform(name, transformedName, basicClass);
+                        newKlass = timeTransform(xformer, name, transformedName, basicClass);
                         SafeAsmClassWriter.forcedOriginalClass.set(null);
                         SafeAsmClassWriter.forcedFlags.set(0);
                         LogWrapper.rfb$logger.warn(
