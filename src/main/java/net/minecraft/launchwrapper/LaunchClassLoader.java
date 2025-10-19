@@ -138,6 +138,9 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         this.sources = new ArrayList<>(Arrays.asList(sources));
         classLoaderExceptions.addAll(Arrays.asList(
                 "java.",
+                "javax.imageio.",
+                "javax.sound.",
+                "javax.swing.",
                 "sun.",
                 "org.lwjgl.",
                 "org.apache.logging.",
@@ -464,12 +467,14 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
      */
     @Override
     public void addURL(final URL url) {
+        this.negativeResourceCache.clear();
         super.addURL(url);
         sources.add(url);
     }
 
     @Override
     public void addSilentURL(@Nullable URL url) {
+        this.negativeResourceCache.clear();
         super.addURL(url);
     }
 
