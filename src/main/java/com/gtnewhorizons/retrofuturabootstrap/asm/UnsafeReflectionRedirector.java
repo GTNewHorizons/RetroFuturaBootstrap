@@ -150,9 +150,12 @@ public class UnsafeReflectionRedirector {
             }
             final long staticOffset = unsafe.staticFieldOffset(field);
             final Object staticObject = unsafe.staticFieldBase(field);
-            unsafe.ensureClassInitialized(
-                    field.getDeclaringClass()); // Ensure the class is actually loaded so the value will not be
-            // overwritten again
+            try {
+                Class.forName(field.getDeclaringClass()
+                        .getName()); // Ensure the class is actually loaded so the value will not be overwritten again
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
             unsafe.putObjectVolatile(staticObject, staticOffset, value);
         } else if (target instanceof Dummy
                 && value instanceof Field) { // Do nothing if trying to cast Field to Dummy$modifiers
