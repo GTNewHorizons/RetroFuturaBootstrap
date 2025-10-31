@@ -57,8 +57,10 @@ public class UnsafeReflectionRedirector {
     }
 
     private static class Accessors {
-        final MethodHandle getter;
-        final MethodHandle setter;
+        final MethodHandle getExact;
+        final MethodHandle setExact;
+        final MethodHandle getErased;
+        final MethodHandle setErased;
 
         Accessors(MethodHandles.Lookup caller, Field field) throws IllegalAccessException {
             Class<?> type = field.getType();
@@ -69,8 +71,10 @@ public class UnsafeReflectionRedirector {
                 getter = MethodHandles.dropArguments(getter, 0, Object.class);
                 setter = MethodHandles.dropArguments(setter, 0, Object.class);
             }
-            this.getter = getter.asType(MethodType.methodType(type, Object.class));
-            this.setter = setter.asType(MethodType.methodType(void.class, Object.class, type));
+            this.getExact = getter.asType(MethodType.methodType(type, Object.class));
+            this.setExact = setter.asType(MethodType.methodType(void.class, Object.class, type));
+            this.getErased = getter.asType(MethodType.methodType(Object.class, Object.class));
+            this.setErased = setter.asType(MethodType.methodType(void.class, Object.class, Object.class));
         }
     }
 
@@ -124,7 +128,7 @@ public class UnsafeReflectionRedirector {
             unsafe.putIntVolatile(base, off, value);
             return;
         }
-        getAccessors(caller, field).setter.invokeExact(target, value);
+        getAccessors(caller, field).setExact.invokeExact(target, value);
     }
 
     /** {@link Field#setShort(Object, short)} */
@@ -140,7 +144,7 @@ public class UnsafeReflectionRedirector {
             unsafe.putShortVolatile(base, off, value);
             return;
         }
-        getAccessors(caller, field).setter.invokeExact(target, (short) value);
+        getAccessors(caller, field).setExact.invokeExact(target, (short) value);
     }
 
     /** {@link Field#setByte(Object, byte)} */
@@ -156,7 +160,7 @@ public class UnsafeReflectionRedirector {
             unsafe.putByteVolatile(base, off, value);
             return;
         }
-        getAccessors(caller, field).setter.invokeExact(target, (byte) value);
+        getAccessors(caller, field).setExact.invokeExact(target, (byte) value);
     }
 
     /** {@link Field#setChar(Object, char)} */
@@ -172,7 +176,7 @@ public class UnsafeReflectionRedirector {
             unsafe.putCharVolatile(base, off, value);
             return;
         }
-        getAccessors(caller, field).setter.invokeExact(target, (char) value);
+        getAccessors(caller, field).setExact.invokeExact(target, (char) value);
     }
 
     /** {@link Field#getInt(Object)} */
@@ -180,7 +184,7 @@ public class UnsafeReflectionRedirector {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return (int) getAccessors(caller, field).getter.invokeExact(target);
+        return (int) getAccessors(caller, field).getExact.invokeExact(target);
     }
 
     /** {@link Field#getLong(Object)} */
@@ -188,7 +192,7 @@ public class UnsafeReflectionRedirector {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return (long) getAccessors(caller, field).getter.invokeExact(target);
+        return (long) getAccessors(caller, field).getExact.invokeExact(target);
     }
 
     /** {@link Field#getFloat(Object)} */
@@ -196,7 +200,7 @@ public class UnsafeReflectionRedirector {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return (float) getAccessors(caller, field).getter.invokeExact(target);
+        return (float) getAccessors(caller, field).getExact.invokeExact(target);
     }
 
     /** {@link Field#getDouble(Object)} */
@@ -204,7 +208,7 @@ public class UnsafeReflectionRedirector {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return (double) getAccessors(caller, field).getter.invokeExact(target);
+        return (double) getAccessors(caller, field).getExact.invokeExact(target);
     }
 
     /** {@link Field#set(Object, Object)} */
@@ -224,7 +228,7 @@ public class UnsafeReflectionRedirector {
             return;
         }
         if (target instanceof Dummy && value instanceof Field) return;
-        getAccessors(caller, field).setter.invokeExact(target, value);
+        getAccessors(caller, field).setErased.invokeExact(target, value);
     }
 
     /** {@link Field#get(Object)} */
@@ -232,7 +236,7 @@ public class UnsafeReflectionRedirector {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return getAccessors(caller, field).getter.invokeExact(target);
+        return getAccessors(caller, field).getErased.invokeExact(target);
     }
 
     private static int coerceToInt(Object obj) {
