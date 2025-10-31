@@ -52,6 +52,49 @@ public class UnsafeReflectionRedirector {
         return new ConstantCallSite(target);
     }
 
+    private static class Accessors {
+        final boolean isStatic;
+        final MethodHandle getter;
+        final MethodHandle setter;
+
+        MethodHandle getter(Object target) {
+            return isStatic ? getter : getter.bindTo(target);
+        }
+
+        MethodHandle setter(Object target) {
+            return isStatic ? setter : setter.bindTo(target);
+        }
+
+        Accessors(boolean isStatic, MethodHandle getter, MethodHandle setter) {
+            this.isStatic = isStatic;
+            this.getter = getter;
+            this.setter = setter;
+        }
+    }
+
+    private static final Map<MethodHandles.Lookup, Map<Field, Accessors>> fieldAccessors = new WeakHashMap<>();
+
+    private static Accessors getAccessors(MethodHandles.Lookup caller, Field field) throws IllegalAccessException {
+        synchronized (fieldAccessors) {
+            Map<Field, Accessors> classMap = fieldAccessors.computeIfAbsent(caller, k -> new WeakHashMap<>());
+            Accessors accessors = classMap.get(field);
+            if (accessors == null) {
+                boolean isStatic = Modifier.isStatic(field.getModifiers());
+                MethodHandle getter = caller.unreflectGetter(field).asType(
+                        isStatic ? MethodType.methodType(field.getType())
+                                : MethodType.methodType(field.getType(), Object.class)
+                );
+                MethodHandle setter = caller.unreflectSetter(field).asType(
+                        isStatic ? MethodType.methodType(void.class, field.getType())
+                                : MethodType.methodType(void.class, Object.class, field.getType())
+                );
+                accessors = new Accessors(isStatic, getter, setter);
+                classMap.put(field, accessors);
+            }
+            return accessors;
+        }
+    }
+
     /** {@link Class#getDeclaredField(String)} */
     public static Field getDeclaredField(Class<?> klass, String name) throws NoSuchFieldException, SecurityException {
         if (klass == fieldClass) {
@@ -79,12 +122,7 @@ public class UnsafeReflectionRedirector {
             setModifiers(target, value);
             return;
         }
-        MethodHandle setter = caller.unreflectSetter(field);
-        if (Modifier.isStatic(field.getModifiers())) {
-            setter.invoke((int) value);
-        } else {
-            setter.invoke(target, (int) value);
-        }
+        getAccessors(caller, field).setter(target).invokeExact(value);
     }
 
     /** {@link Field#setShort(Object, short)} */
@@ -94,12 +132,7 @@ public class UnsafeReflectionRedirector {
             setModifiers(target, value);
             return;
         }
-        MethodHandle setter = caller.unreflectSetter(field);
-        if (Modifier.isStatic(field.getModifiers())) {
-            setter.invoke((short) value);
-        } else {
-            setter.invoke(target, (short) value);
-        }
+        getAccessors(caller, field).setter(target).invokeExact((short) value);
     }
 
     /** {@link Field#setByte(Object, byte)} */
@@ -109,12 +142,7 @@ public class UnsafeReflectionRedirector {
             setModifiers(target, value);
             return;
         }
-        MethodHandle setter = caller.unreflectSetter(field);
-        if (Modifier.isStatic(field.getModifiers())) {
-            setter.invoke((byte) value);
-        } else {
-            setter.invoke(target, (byte) value);
-        }
+        getAccessors(caller, field).setter(target).invokeExact((byte) value);
     }
 
     /** {@link Field#setChar(Object, char)} */
@@ -124,12 +152,7 @@ public class UnsafeReflectionRedirector {
             setModifiers(target, value);
             return;
         }
-        MethodHandle setter = caller.unreflectSetter(field);
-        if (Modifier.isStatic(field.getModifiers())) {
-            setter.invoke((char) value);
-        } else {
-            setter.invoke(target, (char) value);
-        }
+        getAccessors(caller, field).setter(target).invokeExact((char) value);
     }
 
     /** {@link Field#getInt(Object)} */
@@ -137,12 +160,7 @@ public class UnsafeReflectionRedirector {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        MethodHandle getter = caller.unreflectGetter(field);
-        if (Modifier.isStatic(field.getModifiers())) {
-            return (int) getter.invoke();
-        } else {
-            return (int) getter.invoke(target);
-        }
+        return (int) getAccessors(caller, field).getter(target).invokeExact();
     }
 
     /** {@link Field#getLong(Object)} */
@@ -150,12 +168,7 @@ public class UnsafeReflectionRedirector {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        MethodHandle getter = caller.unreflectGetter(field);
-        if (Modifier.isStatic(field.getModifiers())) {
-            return (long) getter.invoke();
-        } else {
-            return (long) getter.invoke(target);
-        }
+        return (long) getAccessors(caller, field).getter(target).invokeExact();
     }
 
     /** {@link Field#getFloat(Object)} */
@@ -163,12 +176,7 @@ public class UnsafeReflectionRedirector {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        MethodHandle getter = caller.unreflectGetter(field);
-        if (Modifier.isStatic(field.getModifiers())) {
-            return (float) getter.invoke();
-        } else {
-            return (float) getter.invoke(target);
-        }
+        return (float) getAccessors(caller, field).getter(target).invokeExact();
     }
 
     /** {@link Field#getDouble(Object)} */
@@ -176,12 +184,7 @@ public class UnsafeReflectionRedirector {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        MethodHandle getter = caller.unreflectGetter(field);
-        if (Modifier.isStatic(field.getModifiers())) {
-            return (double) getter.invoke();
-        } else {
-            return (double) getter.invoke(target);
-        }
+        return (double) getAccessors(caller, field).getter(target).invokeExact();
     }
 
     /** {@link Field#set(Object, Object)} */
@@ -208,12 +211,7 @@ public class UnsafeReflectionRedirector {
                 && value instanceof Field) { // Do nothing if trying to cast Field to Dummy$modifiers
             return;
         } else {
-            MethodHandle setter = caller.unreflectSetter(field);
-            if (Modifier.isStatic(field.getModifiers())) {
-                setter.invoke(value);
-            } else {
-                setter.invoke(target, value);
-            }
+            getAccessors(caller, field).setter(target).invokeExact(value);
         }
     }
 
@@ -222,12 +220,7 @@ public class UnsafeReflectionRedirector {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        MethodHandle getter = caller.unreflectGetter(field);
-        if (Modifier.isStatic(field.getModifiers())) {
-            return getter.invoke();
-        } else {
-            return getter.invoke(target);
-        }
+        return getAccessors(caller, field).getter(target).invokeExact();
     }
 
     private static int coerceToInt(Object obj) {
