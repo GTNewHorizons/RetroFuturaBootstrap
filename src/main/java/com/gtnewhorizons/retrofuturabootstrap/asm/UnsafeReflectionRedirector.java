@@ -8,6 +8,9 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.jetbrains.annotations.NotNull;
 import sun.misc.Unsafe;
 
 /**
@@ -72,27 +75,30 @@ public class UnsafeReflectionRedirector {
         }
     }
 
-    private static final Map<MethodHandles.Lookup, Map<Field, Accessors>> fieldAccessors = new WeakHashMap<>();
+    private static final ClassValue<Map<Field, Accessors>> fieldAccessors = new ClassValue<Map<Field, Accessors>>() {
+        @Override
+        protected Map<Field, Accessors> computeValue(@NotNull Class<?> type) {
+            return new ConcurrentHashMap<>();
+        }
+    };
 
     private static Accessors getAccessors(MethodHandles.Lookup caller, Field field) throws IllegalAccessException {
-        synchronized (fieldAccessors) {
-            Map<Field, Accessors> classMap = fieldAccessors.computeIfAbsent(caller, k -> new WeakHashMap<>());
-            Accessors accessors = classMap.get(field);
-            if (accessors == null) {
-                boolean isStatic = Modifier.isStatic(field.getModifiers());
-                MethodHandle getter = caller.unreflectGetter(field).asType(
-                        isStatic ? MethodType.methodType(field.getType())
-                                : MethodType.methodType(field.getType(), Object.class)
-                );
-                MethodHandle setter = caller.unreflectSetter(field).asType(
-                        isStatic ? MethodType.methodType(void.class, field.getType())
-                                : MethodType.methodType(void.class, Object.class, field.getType())
-                );
-                accessors = new Accessors(isStatic, getter, setter);
-                classMap.put(field, accessors);
-            }
-            return accessors;
+        Map<Field, Accessors> classMap = fieldAccessors.get(caller.lookupClass());
+        Accessors accessors = classMap.get(field);
+        if (accessors == null) {
+            boolean isStatic = Modifier.isStatic(field.getModifiers());
+            MethodHandle getter = caller.unreflectGetter(field).asType(
+                    isStatic ? MethodType.methodType(field.getType())
+                            : MethodType.methodType(field.getType(), Object.class)
+            );
+            MethodHandle setter = caller.unreflectSetter(field).asType(
+                    isStatic ? MethodType.methodType(void.class, field.getType())
+                            : MethodType.methodType(void.class, Object.class, field.getType())
+            );
+            accessors = new Accessors(isStatic, getter, setter);
+            classMap.put(field, accessors);
         }
+        return accessors;
     }
 
     /** {@link Class#getDeclaredField(String)} */
@@ -122,6 +128,12 @@ public class UnsafeReflectionRedirector {
             setModifiers(target, value);
             return;
         }
+        if (Modifier.isStatic(field.getModifiers()) && isFieldUnlocked(field)) {
+            Object base = unsafe.staticFieldBase(field);
+            long off = unsafe.staticFieldOffset(field);
+            unsafe.putIntVolatile(base, off, value);
+            return;
+        }
         getAccessors(caller, field).setter(target).invokeExact(value);
     }
 
@@ -130,6 +142,12 @@ public class UnsafeReflectionRedirector {
             throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(target, value);
+            return;
+        }
+        if (Modifier.isStatic(field.getModifiers()) && isFieldUnlocked(field)) {
+            Object base = unsafe.staticFieldBase(field);
+            long off = unsafe.staticFieldOffset(field);
+            unsafe.putShortVolatile(base, off, value);
             return;
         }
         getAccessors(caller, field).setter(target).invokeExact((short) value);
@@ -142,6 +160,12 @@ public class UnsafeReflectionRedirector {
             setModifiers(target, value);
             return;
         }
+        if (Modifier.isStatic(field.getModifiers()) && isFieldUnlocked(field)) {
+            Object base = unsafe.staticFieldBase(field);
+            long off = unsafe.staticFieldOffset(field);
+            unsafe.putByteVolatile(base, off, value);
+            return;
+        }
         getAccessors(caller, field).setter(target).invokeExact((byte) value);
     }
 
@@ -150,6 +174,12 @@ public class UnsafeReflectionRedirector {
             throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(target, value);
+            return;
+        }
+        if (Modifier.isStatic(field.getModifiers()) && isFieldUnlocked(field)) {
+            Object base = unsafe.staticFieldBase(field);
+            long off = unsafe.staticFieldOffset(field);
+            unsafe.putCharVolatile(base, off, value);
             return;
         }
         getAccessors(caller, field).setter(target).invokeExact((char) value);
@@ -195,24 +225,16 @@ public class UnsafeReflectionRedirector {
             return;
         }
 
-        if (isFieldUnlocked(field)) {
-            // Only static final fields are redirected to Unsafe.
-            if (!Modifier.isStatic(field.getModifiers())) {
-                throw new IllegalStateException("unsafe redirect of non-static field set");
-            }
-            if (!field.getType().isAssignableFrom(value.getClass())) {
-                throw new IllegalArgumentException(
-                        "Field " + field.getType() + " not assignable from " + value.getClass());
-            }
-            final long staticOffset = unsafe.staticFieldOffset(field);
-            final Object staticObject = unsafe.staticFieldBase(field);
-            unsafe.putObjectVolatile(staticObject, staticOffset, value);
-        } else if (target instanceof Dummy
-                && value instanceof Field) { // Do nothing if trying to cast Field to Dummy$modifiers
+        if (Modifier.isStatic(field.getModifiers()) && isFieldUnlocked(field)) {
+            if (!field.getType().isAssignableFrom(value.getClass()))
+                throw new IllegalArgumentException("Field " + field.getType() + " not assignable from " + value.getClass());
+            Object base = unsafe.staticFieldBase(field);
+            long off = unsafe.staticFieldOffset(field);
+            unsafe.putObjectVolatile(base, off, value);
             return;
-        } else {
-            getAccessors(caller, field).setter(target).invokeExact(value);
         }
+        if (target instanceof Dummy && value instanceof Field) return;
+        getAccessors(caller, field).setter(target).invokeExact(value);
     }
 
     /** {@link Field#get(Object)} */
