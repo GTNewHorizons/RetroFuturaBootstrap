@@ -1,5 +1,10 @@
 package com.gtnewhorizons.retrofuturabootstrap.asm;
 
+import java.lang.invoke.CallSite;
+import java.lang.invoke.ConstantCallSite;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
@@ -39,6 +44,14 @@ public class UnsafeReflectionRedirector {
         }
     }
 
+    public static CallSite bsm(MethodHandles.Lookup caller, String name, MethodType methodType) throws Exception {
+        MethodType newType = methodType.insertParameterTypes(0, MethodHandles.Lookup.class);
+        MethodHandle target = caller.findStatic(UnsafeReflectionRedirector.class, name, newType)
+                .bindTo(caller)
+                .asType(methodType);
+        return new ConstantCallSite(target);
+    }
+
     /** {@link Class#getDeclaredField(String)} */
     public static Field getDeclaredField(Class<?> klass, String name) throws NoSuchFieldException, SecurityException {
         if (klass == fieldClass) {
@@ -60,80 +73,120 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Field#setInt(Object, int)} */
-    public static void setInt(Field field, Object target, int value)
-            throws IllegalArgumentException, IllegalAccessException {
+    public static void setInt(MethodHandles.Lookup caller, Field field, Object target, int value)
+            throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(target, value);
             return;
         }
-        field.setInt(target, value);
+        MethodHandle setter = caller.unreflectSetter(field);
+        if (Modifier.isStatic(field.getModifiers())) {
+            setter.invoke((int) value);
+        } else {
+            setter.invoke(target, (int) value);
+        }
     }
 
     /** {@link Field#setShort(Object, short)} */
-    public static void setShort(Field field, Object target, short value)
-            throws IllegalArgumentException, IllegalAccessException {
+    public static void setShort(MethodHandles.Lookup caller, Field field, Object target, short value)
+            throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(target, value);
             return;
         }
-        field.setShort(target, value);
+        MethodHandle setter = caller.unreflectSetter(field);
+        if (Modifier.isStatic(field.getModifiers())) {
+            setter.invoke((short) value);
+        } else {
+            setter.invoke(target, (short) value);
+        }
     }
 
     /** {@link Field#setByte(Object, byte)} */
-    public static void setByte(Field field, Object target, byte value)
-            throws IllegalArgumentException, IllegalAccessException {
+    public static void setByte(MethodHandles.Lookup caller, Field field, Object target, byte value)
+            throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(target, value);
             return;
         }
-        field.setByte(target, value);
+        MethodHandle setter = caller.unreflectSetter(field);
+        if (Modifier.isStatic(field.getModifiers())) {
+            setter.invoke((byte) value);
+        } else {
+            setter.invoke(target, (byte) value);
+        }
     }
 
     /** {@link Field#setChar(Object, char)} */
-    public static void setChar(Field field, Object target, char value)
-            throws IllegalArgumentException, IllegalAccessException {
+    public static void setChar(MethodHandles.Lookup caller, Field field, Object target, char value)
+            throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(target, value);
             return;
         }
-        field.setChar(target, value);
+        MethodHandle setter = caller.unreflectSetter(field);
+        if (Modifier.isStatic(field.getModifiers())) {
+            setter.invoke((char) value);
+        } else {
+            setter.invoke(target, (char) value);
+        }
     }
 
     /** {@link Field#getInt(Object)} */
-    public static int getInt(Field field, Object target) throws IllegalArgumentException, IllegalAccessException {
+    public static int getInt(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return field.getInt(target);
+        MethodHandle getter = caller.unreflectGetter(field);
+        if (Modifier.isStatic(field.getModifiers())) {
+            return (int) getter.invoke();
+        } else {
+            return (int) getter.invoke(target);
+        }
     }
 
     /** {@link Field#getLong(Object)} */
-    public static long getLong(Field field, Object target) throws IllegalArgumentException, IllegalAccessException {
+    public static long getLong(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return field.getLong(target);
+        MethodHandle getter = caller.unreflectGetter(field);
+        if (Modifier.isStatic(field.getModifiers())) {
+            return (long) getter.invoke();
+        } else {
+            return (long) getter.invoke(target);
+        }
     }
 
     /** {@link Field#getFloat(Object)} */
-    public static float getFloat(Field field, Object target) throws IllegalArgumentException, IllegalAccessException {
+    public static float getFloat(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return field.getFloat(target);
+        MethodHandle getter = caller.unreflectGetter(field);
+        if (Modifier.isStatic(field.getModifiers())) {
+            return (float) getter.invoke();
+        } else {
+            return (float) getter.invoke(target);
+        }
     }
 
     /** {@link Field#getDouble(Object)} */
-    public static double getDouble(Field field, Object target) throws IllegalArgumentException, IllegalAccessException {
+    public static double getDouble(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return field.getDouble(target);
+        MethodHandle getter = caller.unreflectGetter(field);
+        if (Modifier.isStatic(field.getModifiers())) {
+            return (double) getter.invoke();
+        } else {
+            return (double) getter.invoke(target);
+        }
     }
 
     /** {@link Field#set(Object, Object)} */
-    public static void set(Field field, Object target, Object value)
-            throws IllegalArgumentException, IllegalAccessException {
+    public static void set(MethodHandles.Lookup caller, Field field, Object target, Object value)
+            throws Throwable {
         if (field == fieldModifiers && canCoerceToInt(value)) {
             setModifiers(target, coerceToInt(value));
             return;
@@ -155,16 +208,26 @@ public class UnsafeReflectionRedirector {
                 && value instanceof Field) { // Do nothing if trying to cast Field to Dummy$modifiers
             return;
         } else {
-            field.set(target, value);
+            MethodHandle setter = caller.unreflectSetter(field);
+            if (Modifier.isStatic(field.getModifiers())) {
+                setter.invoke(value);
+            } else {
+                setter.invoke(target, value);
+            }
         }
     }
 
     /** {@link Field#get(Object)} */
-    public static Object get(Field field, Object target) throws IllegalArgumentException, IllegalAccessException {
+    public static Object get(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return field.get(target);
+        MethodHandle getter = caller.unreflectGetter(field);
+        if (Modifier.isStatic(field.getModifiers())) {
+            return getter.invoke();
+        } else {
+            return getter.invoke(target);
+        }
     }
 
     private static int coerceToInt(Object obj) {
