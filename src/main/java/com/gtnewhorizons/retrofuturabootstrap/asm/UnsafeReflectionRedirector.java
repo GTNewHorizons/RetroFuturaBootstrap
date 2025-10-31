@@ -26,6 +26,7 @@ public class UnsafeReflectionRedirector {
     private static final Class<?> fieldClass = Field.class;
     private static final Field fieldModifiers;
     private static final Set<Field> unlockedFields = Collections.newSetFromMap(new WeakHashMap<>());
+    private static final MethodHandles.Lookup self = MethodHandles.lookup();
     private static final Unsafe unsafe;
 
     private static synchronized void unlockField(Field f) {
@@ -49,29 +50,27 @@ public class UnsafeReflectionRedirector {
 
     public static CallSite bsm(MethodHandles.Lookup caller, String name, MethodType methodType) throws Exception {
         MethodType newType = methodType.insertParameterTypes(0, MethodHandles.Lookup.class);
-        MethodHandle target = caller.findStatic(UnsafeReflectionRedirector.class, name, newType)
+        MethodHandle target = self.findStatic(UnsafeReflectionRedirector.class, name, newType)
                 .bindTo(caller)
                 .asType(methodType);
         return new ConstantCallSite(target);
     }
 
     private static class Accessors {
-        final boolean isStatic;
         final MethodHandle getter;
         final MethodHandle setter;
 
-        MethodHandle getter(Object target) {
-            return isStatic ? getter : getter.bindTo(target);
-        }
-
-        MethodHandle setter(Object target) {
-            return isStatic ? setter : setter.bindTo(target);
-        }
-
-        Accessors(boolean isStatic, MethodHandle getter, MethodHandle setter) {
-            this.isStatic = isStatic;
-            this.getter = getter;
-            this.setter = setter;
+        Accessors(MethodHandles.Lookup caller, Field field) throws IllegalAccessException {
+            Class<?> type = field.getType();
+            MethodHandle getter = caller.unreflectGetter(field);
+            MethodHandle setter = caller.unreflectSetter(field);
+            if (Modifier.isStatic(field.getModifiers())) {
+                // add a dummy first argument for static fields, so the target will be passed in and ignored
+                getter = MethodHandles.dropArguments(getter, 0, Object.class);
+                setter = MethodHandles.dropArguments(setter, 0, Object.class);
+            }
+            this.getter = getter.asType(MethodType.methodType(type, Object.class));
+            this.setter = setter.asType(MethodType.methodType(void.class, Object.class, type));
         }
     }
 
@@ -83,26 +82,17 @@ public class UnsafeReflectionRedirector {
     };
 
     private static Accessors getAccessors(MethodHandles.Lookup caller, Field field) throws IllegalAccessException {
-        Map<Field, Accessors> classMap = fieldAccessors.get(caller.lookupClass());
-        Accessors accessors = classMap.get(field);
+		Map<Field, Accessors> forClass = fieldAccessors.get(caller.lookupClass());
+        Accessors accessors = forClass.get(field);
         if (accessors == null) {
-            boolean isStatic = Modifier.isStatic(field.getModifiers());
-            MethodHandle getter = caller.unreflectGetter(field).asType(
-                    isStatic ? MethodType.methodType(field.getType())
-                            : MethodType.methodType(field.getType(), Object.class)
-            );
-            MethodHandle setter = caller.unreflectSetter(field).asType(
-                    isStatic ? MethodType.methodType(void.class, field.getType())
-                            : MethodType.methodType(void.class, Object.class, field.getType())
-            );
-            accessors = new Accessors(isStatic, getter, setter);
-            classMap.put(field, accessors);
+            accessors = new Accessors(caller, field);
+            forClass.put(field, accessors);
         }
         return accessors;
     }
 
     /** {@link Class#getDeclaredField(String)} */
-    public static Field getDeclaredField(Class<?> klass, String name) throws NoSuchFieldException, SecurityException {
+    private static Field getDeclaredField(Class<?> klass, String name) throws NoSuchFieldException, SecurityException {
         if (klass == fieldClass) {
             if ("modifiers".equals(name)) {
                 return fieldModifiers;
@@ -114,7 +104,7 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Class#getDeclaredFields()} */
-    public static Field[] getDeclaredFields(Class<?> klass) throws NoSuchFieldException, SecurityException {
+    private static Field[] getDeclaredFields(Class<?> klass) throws SecurityException {
         if (klass == fieldClass) {
             return new Field[] {fieldModifiers};
         }
@@ -122,7 +112,7 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Field#setInt(Object, int)} */
-    public static void setInt(MethodHandles.Lookup caller, Field field, Object target, int value)
+    private static void setInt(MethodHandles.Lookup caller, Field field, Object target, int value)
             throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(target, value);
@@ -134,11 +124,11 @@ public class UnsafeReflectionRedirector {
             unsafe.putIntVolatile(base, off, value);
             return;
         }
-        getAccessors(caller, field).setter(target).invokeExact(value);
+        getAccessors(caller, field).setter.invokeExact(target, value);
     }
 
     /** {@link Field#setShort(Object, short)} */
-    public static void setShort(MethodHandles.Lookup caller, Field field, Object target, short value)
+    private static void setShort(MethodHandles.Lookup caller, Field field, Object target, short value)
             throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(target, value);
@@ -150,11 +140,11 @@ public class UnsafeReflectionRedirector {
             unsafe.putShortVolatile(base, off, value);
             return;
         }
-        getAccessors(caller, field).setter(target).invokeExact((short) value);
+        getAccessors(caller, field).setter.invokeExact(target, (short) value);
     }
 
     /** {@link Field#setByte(Object, byte)} */
-    public static void setByte(MethodHandles.Lookup caller, Field field, Object target, byte value)
+    private static void setByte(MethodHandles.Lookup caller, Field field, Object target, byte value)
             throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(target, value);
@@ -166,11 +156,11 @@ public class UnsafeReflectionRedirector {
             unsafe.putByteVolatile(base, off, value);
             return;
         }
-        getAccessors(caller, field).setter(target).invokeExact((byte) value);
+        getAccessors(caller, field).setter.invokeExact(target, (byte) value);
     }
 
     /** {@link Field#setChar(Object, char)} */
-    public static void setChar(MethodHandles.Lookup caller, Field field, Object target, char value)
+    private static void setChar(MethodHandles.Lookup caller, Field field, Object target, char value)
             throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(target, value);
@@ -182,43 +172,43 @@ public class UnsafeReflectionRedirector {
             unsafe.putCharVolatile(base, off, value);
             return;
         }
-        getAccessors(caller, field).setter(target).invokeExact((char) value);
+        getAccessors(caller, field).setter.invokeExact(target, (char) value);
     }
 
     /** {@link Field#getInt(Object)} */
-    public static int getInt(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
+    private static int getInt(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return (int) getAccessors(caller, field).getter(target).invokeExact();
+        return (int) getAccessors(caller, field).getter.invokeExact(target);
     }
 
     /** {@link Field#getLong(Object)} */
-    public static long getLong(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
+    private static long getLong(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return (long) getAccessors(caller, field).getter(target).invokeExact();
+        return (long) getAccessors(caller, field).getter.invokeExact(target);
     }
 
     /** {@link Field#getFloat(Object)} */
-    public static float getFloat(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
+    private static float getFloat(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return (float) getAccessors(caller, field).getter(target).invokeExact();
+        return (float) getAccessors(caller, field).getter.invokeExact(target);
     }
 
     /** {@link Field#getDouble(Object)} */
-    public static double getDouble(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
+    private static double getDouble(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return (double) getAccessors(caller, field).getter(target).invokeExact();
+        return (double) getAccessors(caller, field).getter.invokeExact(target);
     }
 
     /** {@link Field#set(Object, Object)} */
-    public static void set(MethodHandles.Lookup caller, Field field, Object target, Object value)
+    private static void set(MethodHandles.Lookup caller, Field field, Object target, Object value)
             throws Throwable {
         if (field == fieldModifiers && canCoerceToInt(value)) {
             setModifiers(target, coerceToInt(value));
@@ -234,15 +224,15 @@ public class UnsafeReflectionRedirector {
             return;
         }
         if (target instanceof Dummy && value instanceof Field) return;
-        getAccessors(caller, field).setter(target).invokeExact(value);
+        getAccessors(caller, field).setter.invokeExact(target, value);
     }
 
     /** {@link Field#get(Object)} */
-    public static Object get(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
+    private static Object get(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
             return getModifiers(target);
         }
-        return getAccessors(caller, field).getter(target).invokeExact();
+        return getAccessors(caller, field).getter.invokeExact(target);
     }
 
     private static int coerceToInt(Object obj) {
