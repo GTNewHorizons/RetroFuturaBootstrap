@@ -106,14 +106,15 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
                             && REDIRECT_FIELD_METHODS.contains(insn.name + insn.desc)) {
                         // add a Field argument at the start
                         String newDesc = "(Ljava/lang/reflect/Field;" + insn.desc.substring(1);
-                        InvokeDynamicInsnNode newNode =
-                                new InvokeDynamicInsnNode(insn.name, newDesc, new Handle(
+                        InvokeDynamicInsnNode newNode = new InvokeDynamicInsnNode(
+                                insn.name,
+                                newDesc,
+                                new Handle(
                                         Opcodes.H_INVOKESTATIC,
                                         REDIRECTION_NAME,
                                         "bsm",
                                         "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;",
-                                        false
-                                ));
+                                        false));
                         method.instructions.set(insn, newNode);
                         node.version = Math.max(node.version, Opcodes.V1_7); // invokedynamic requires at least Java 7
                         classNode.computeFrames();

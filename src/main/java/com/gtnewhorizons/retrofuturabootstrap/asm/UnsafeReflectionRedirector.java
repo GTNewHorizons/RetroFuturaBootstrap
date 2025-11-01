@@ -10,7 +10,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-
 import org.jetbrains.annotations.NotNull;
 import sun.misc.Unsafe;
 
@@ -105,7 +104,8 @@ public class UnsafeReflectionRedirector {
         String name;
         MethodType shape;
         if (type.isPrimitive()) {
-            name = "put" + Character.toUpperCase(type.getName().charAt(0)) + type.getName().substring(1) + "Volatile";
+            name = "put" + Character.toUpperCase(type.getName().charAt(0))
+                    + type.getName().substring(1) + "Volatile";
             shape = MethodType.methodType(void.class, Object.class, long.class, type);
         } else {
             name = "putObjectVolatile";
@@ -117,7 +117,7 @@ public class UnsafeReflectionRedirector {
     }
 
     private static Accessors getAccessors(MethodHandles.Lookup caller, Field field) throws Throwable {
-		Map<Field, Accessors> forClass = fieldAccessors.get(caller.lookupClass());
+        Map<Field, Accessors> forClass = fieldAccessors.get(caller.lookupClass());
         Accessors accessors = forClass.get(field);
         if (accessors == null) {
             accessors = new Accessors(caller, field);
@@ -147,8 +147,7 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Field#setInt(Object, int)} */
-    private static void setInt(MethodHandles.Lookup caller, Field field, Object target, int value)
-            throws Throwable {
+    private static void setInt(MethodHandles.Lookup caller, Field field, Object target, int value) throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(caller, target, value);
             return;
@@ -167,8 +166,7 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Field#setByte(Object, byte)} */
-    private static void setByte(MethodHandles.Lookup caller, Field field, Object target, byte value)
-            throws Throwable {
+    private static void setByte(MethodHandles.Lookup caller, Field field, Object target, byte value) throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(caller, target, value);
             return;
@@ -177,8 +175,7 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Field#setChar(Object, char)} */
-    private static void setChar(MethodHandles.Lookup caller, Field field, Object target, char value)
-            throws Throwable {
+    private static void setChar(MethodHandles.Lookup caller, Field field, Object target, char value) throws Throwable {
         if (field == fieldModifiers) {
             setModifiers(caller, target, value);
             return;
@@ -219,8 +216,7 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Field#set(Object, Object)} */
-    private static void set(MethodHandles.Lookup caller, Field field, Object target, Object value)
-            throws Throwable {
+    private static void set(MethodHandles.Lookup caller, Field field, Object target, Object value) throws Throwable {
         if (field == fieldModifiers && canCoerceToInt(value)) {
             setModifiers(caller, target, coerceToInt(value));
             return;
@@ -264,7 +260,7 @@ public class UnsafeReflectionRedirector {
 
     private static int getModifiers(MethodHandles.Lookup caller, Object target) throws Throwable {
         final Field targetF = (Field) target;
-		int modifiers = targetF.getModifiers();
+        int modifiers = targetF.getModifiers();
         if (getAccessors(caller, targetF).isUnlocked()) {
             modifiers &= ~Modifier.FINAL;
         }
