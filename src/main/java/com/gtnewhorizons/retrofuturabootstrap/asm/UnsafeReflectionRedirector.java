@@ -127,7 +127,7 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Class#getDeclaredField(String)} */
-    private static Field getDeclaredField(Class<?> klass, String name) throws NoSuchFieldException, SecurityException {
+    public static Field getDeclaredField(Class<?> klass, String name) throws NoSuchFieldException, SecurityException {
         if (klass == fieldClass) {
             if ("modifiers".equals(name)) {
                 return fieldModifiers;
@@ -139,7 +139,7 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Class#getDeclaredFields()} */
-    private static Field[] getDeclaredFields(Class<?> klass) throws SecurityException {
+    public static Field[] getDeclaredFields(Class<?> klass) throws SecurityException {
         if (klass == fieldClass) {
             return new Field[] {fieldModifiers};
         }
