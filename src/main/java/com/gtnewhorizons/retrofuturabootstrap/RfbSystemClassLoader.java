@@ -220,7 +220,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         final String packageName = (lastDot == -1) ? "" : name.substring(0, lastDot);
         final String classPath = name.replace('.', '/') + ".class";
         final URLConnection connection = findCodeSourceConnectionFor(classPath);
-        final Package pkg;
+        Package pkg = null;
         final CodeSource codeSource;
         Manifest manifest = null;
         byte[] classBytes = null;
@@ -240,11 +240,9 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
                 // Different from LaunchClassLoader to mimic Java ClassLoaders.
                 codeSource = new CodeSource(codeSourceUrl, codeSigners);
             } else {
-                pkg = getAndVerifyPackage(packageName, null, null);
                 codeSource = connection == null ? null : new CodeSource(connection.getURL(), (CodeSigner[]) null);
             }
         } else {
-            pkg = null;
             codeSource = null;
         }
         if (classBytes == null) {
@@ -268,6 +266,9 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         }
         if (classBytes == null) {
             throw new ClassNotFoundException(String.format("Class bytes are null for %s (%s, %s)", name, name, name));
+        }
+        if (!packageName.isEmpty() && pkg == null) {
+            getAndVerifyPackage(packageName, null, null);
         }
         if (SharedConfig.cfgDumpLoadedClasses) {
             SharedConfig.dumpClass(this.getClassLoaderName(), name, classBytes);
