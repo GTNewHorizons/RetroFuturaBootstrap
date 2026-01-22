@@ -30,7 +30,7 @@ public final class ClassNodeHandle {
             originalMetadata = null;
         } else {
             try {
-                originalMetadata = new ClassHeaderMetadata(classData);
+                originalMetadata = ClassHeaderMetadata.of(classData);
             } catch (Exception e) {
                 originalMetadata = null;
             }

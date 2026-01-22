@@ -168,7 +168,7 @@ public final class RfbSystemClassLoader extends URLClassLoaderWithUtilities impl
         try {
             final byte[] classBytes = getClassBytes(name);
             if (classBytes != null) {
-                return new ClassHeaderMetadata(classBytes);
+                return ClassHeaderMetadata.of(classBytes);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
