@@ -9,6 +9,8 @@ import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformerHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPlugin;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbPluginMetadata;
+import com.gtnewhorizons.retrofuturabootstrap.service.RfbDependencyLocator;
+import com.gtnewhorizons.retrofuturabootstrap.service.RfbServices;
 import com.gtnewhorizons.retrofuturabootstrap.versioning.DefaultArtifactVersion;
 import java.io.BufferedReader;
 import java.io.File;
@@ -53,6 +55,7 @@ public final class PluginLoader {
 
     public static final String META_INF = "META-INF";
     public static final String RFB_PLUGINS_DIR = "rfb-plugin";
+    public static final String ZIP_PREFIX = META_INF + "/" + RFB_PLUGINS_DIR + "/";
     private static final ArrayList<FileSystem> jarFilesystems = new ArrayList<>();
     // Metadata of plugins in loading order
     public static final ArrayList<RfbPluginMetadata> loadedPluginMetadata = new ArrayList<>();
@@ -62,6 +65,7 @@ public final class PluginLoader {
 
     public static void initializePlugins() throws Throwable {
         final List<RfbPluginMetadata> pluginMetadata = findPluginManifests();
+        locateDependencies(pluginMetadata);
 
         pluginMetadata.add(makeRfbMetadata());
         pluginMetadata.add(makeJavaMetadata());
@@ -261,6 +265,22 @@ public final class PluginLoader {
         });
     }
 
+    /**
+     * Locate dependencies for all plugins.
+     * @param pluginMetadata List of plugin metadata to locate dependencies for.  Will be modified in place.
+     */
+    private static void locateDependencies(List<RfbPluginMetadata> pluginMetadata) {
+        final List<RfbDependencyLocator> locators = RfbServices.getDependencyLocators();
+        if (locators.size() == 0) return;
+
+        for (int i = 0; i < pluginMetadata.size(); i++) {
+            final RfbPluginMetadata meta = pluginMetadata.get(i);
+            for (RfbDependencyLocator locator : locators) {
+                pluginMetadata.addAll(locator.locateDependencies(meta));
+            }
+        }
+    }
+
     private static final URI myURI;
     private static final URL myJar;
 
@@ -351,7 +371,6 @@ public final class PluginLoader {
         int count = 0;
         final List<RfbPluginMetadata> pluginMetadata = new ArrayList<>();
         // TODO: cache
-        final String zipPrefix = META_INF + "/" + RFB_PLUGINS_DIR + "/";
         for (final URI uriToSearch : urisToSearch) {
             try {
                 final boolean isJar =
@@ -363,28 +382,7 @@ public final class PluginLoader {
                     continue;
                 }
                 if (isJar) {
-                    try (final ZipFile zip = new ZipFile(root.toFile(), ZipFile.OPEN_READ, StandardCharsets.UTF_8)) {
-                        for (final Enumeration<? extends ZipEntry> enm = zip.entries(); enm.hasMoreElements(); ) {
-                            final ZipEntry ze = enm.nextElement();
-                            if (ze.isDirectory() || !ze.getName().startsWith(zipPrefix)) {
-                                continue;
-                            }
-                            final URI uri = new URI("jar:" + root.toUri() + "!" + ze.getName());
-                            final String filename = ze.getName().replace(zipPrefix, "");
-                            if (filename.contains("/")) {
-                                continue;
-                            }
-                            try (final InputStream is = zip.getInputStream(ze);
-                                    final Reader rdr = new InputStreamReader(is, StandardCharsets.UTF_8);
-                                    final BufferedReader bufReader = new BufferedReader(rdr)) {
-                                pluginMetadata.add(parseMetadata(uriToSearch.toURL(), uri, filename, bufReader));
-                            } catch (Exception e) {
-                                Main.logger.error("Skipping invalid plugin manifest {}", uri, e);
-                            }
-                        }
-                    } catch (Exception e) {
-                        Main.logger.error("Error while parsing plugin manifests from jar file: " + root, e);
-                    }
+                    pluginMetadata.addAll(getJarPluginMetas(uriToSearch));
                 } else {
                     final Path pluginsDir = root.resolve(META_INF).resolve(RFB_PLUGINS_DIR);
                     if (!Files.isDirectory(pluginsDir)) {
@@ -427,6 +425,33 @@ public final class PluginLoader {
         Main.logger.info("Successfully scanned {} paths for RFB plugins.", count);
 
         return pluginMetadata;
+    }
+
+    public static List<RfbPluginMetadata> getJarPluginMetas(URI uriToSearch) {
+        final Path path = Paths.get(uriToSearch);
+        final List<RfbPluginMetadata> metas = new ArrayList<>();
+        try (final ZipFile zip = new ZipFile(path.toFile(), ZipFile.OPEN_READ, StandardCharsets.UTF_8)) {
+            for (final Enumeration<? extends ZipEntry> enm = zip.entries(); enm.hasMoreElements(); ) {
+                final ZipEntry ze = enm.nextElement();
+                if (ze.isDirectory() || !ze.getName().startsWith(ZIP_PREFIX)) {
+                    continue;
+                }
+                final URI uri = new URI("jar:" + path.toUri() + "!" + ze.getName());
+                final String filename = ze.getName().replace(ZIP_PREFIX, "");
+                if (filename.contains("/")) continue;
+
+                try (final InputStream is = zip.getInputStream(ze);
+                        final Reader rdr = new InputStreamReader(is, StandardCharsets.UTF_8);
+                        final BufferedReader bufReader = new BufferedReader(rdr)) {
+                    metas.add(parseMetadata(uriToSearch.toURL(), uri, filename, bufReader));
+                } catch (Exception e) {
+                    Main.logger.error("Skipping invalid plugin manifest {}", uri, e);
+                }
+            }
+        } catch (Exception e) {
+            Main.logger.error("Error while parsing plugin manifests from jar file: " + path, e);
+        }
+        return metas;
     }
 
     private static RfbPluginMetadata parseMetadata(
