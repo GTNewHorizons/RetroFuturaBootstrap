@@ -34,7 +34,7 @@ spotless {
   }
 }
 
-val asmVersion = "9.7.1"
+val asmVersion = "9.9.1"
 
 dependencies {
   testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
@@ -68,10 +68,7 @@ lateinit var java9: SourceSet
 
 // Apply a specific Java toolchain to ease working on different environments.
 java {
-  toolchain {
-    languageVersion.set(JavaLanguageVersion.of(17))
-    vendor.set(JvmVendorSpec.AZUL)
-  }
+  toolchain { languageVersion.set(JavaLanguageVersion.of(17)) }
   withSourcesJar()
   withJavadocJar()
 
@@ -118,10 +115,7 @@ tasks.processResources {
 
 tasks.withType<Javadoc>().configureEach {
   this.javadocTool.set(
-      javaToolchains.javadocToolFor {
-        languageVersion.set(JavaLanguageVersion.of(17))
-        vendor.set(JvmVendorSpec.AZUL)
-      })
+      javaToolchains.javadocToolFor { languageVersion.set(JavaLanguageVersion.of(17)) })
   with(options as StandardJavadocDocletOptions) {
     links("https://docs.oracle.com/en/java/javase/21/docs/api/")
     addStringOption("Xdoclint:all,-missing", "-quiet")

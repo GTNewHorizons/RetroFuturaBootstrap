@@ -1,5 +1,7 @@
 package com.gtnewhorizons.retrofuturabootstrap;
 
+import java.awt.GraphicsEnvironment;
+import java.awt.Toolkit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +34,10 @@ public final class MainStartOnFirstThread extends AbstractExecutorService {
         // Enforce headless AWT on macOS
         if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("mac")) {
             System.setProperty("java.awt.headless", "true");
+            // Prevent some AWT access attempts from freezing other threads
+            GraphicsEnvironment.getLocalGraphicsEnvironment();
+            // This blocks on first access but then has a cached property map, it can run on the real main thread
+            Toolkit.getDefaultToolkit().getDesktopProperty("awt.mouse.numButtons");
         }
         INSTANCE = new MainStartOnFirstThread();
         Thread.currentThread().setName("RFB-ActualMain-EventLoop");
