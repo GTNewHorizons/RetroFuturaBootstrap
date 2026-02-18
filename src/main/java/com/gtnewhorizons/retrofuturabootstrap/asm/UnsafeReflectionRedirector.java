@@ -28,9 +28,10 @@ public class UnsafeReflectionRedirector {
     private static final MethodHandles.Lookup self = MethodHandles.lookup();
     private static final Unsafe unsafe;
 
-    private static final ClassValue<Map<Field, Accessors>> fieldAccessors = new ClassValue<Map<Field, Accessors>>() {
+    private static final ClassValue<ConcurrentHashMap<Field, Accessors>> fieldAccessors =
+            new ClassValue<ConcurrentHashMap<Field, Accessors>>() {
         @Override
-        protected Map<Field, Accessors> computeValue(@NotNull Class<?> type) {
+        protected ConcurrentHashMap<Field, Accessors> computeValue(@NotNull Class<?> type) {
             return new ConcurrentHashMap<>();
         }
     };
@@ -117,13 +118,17 @@ public class UnsafeReflectionRedirector {
     }
 
     private static Accessors getAccessors(MethodHandles.Lookup caller, Field field) throws Throwable {
-        Map<Field, Accessors> forClass = fieldAccessors.get(caller.lookupClass());
-        Accessors accessors = forClass.get(field);
-        if (accessors == null) {
-            accessors = new Accessors(caller, field);
-            forClass.put(field, accessors);
+        Map<Field, Accessors> forClass = fieldAccessors.get(field.getDeclaringClass());
+        Accessors a = forClass.get(field);
+        if (a != null) return a;
+        synchronized (forClass) {
+            a = forClass.get(field);
+            if (a == null) {
+                a = new Accessors(caller, field);
+                forClass.put(field, a);
+            }
+            return a;
         }
-        return accessors;
     }
 
     /** {@link Class#getDeclaredField(String)} */
