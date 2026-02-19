@@ -28,10 +28,9 @@ public class UnsafeReflectionRedirector {
     private static final MethodHandles.Lookup self = MethodHandles.lookup();
     private static final Unsafe unsafe;
 
-    private static final ClassValue<ConcurrentHashMap<Field, Accessors>> fieldAccessors =
-            new ClassValue<ConcurrentHashMap<Field, Accessors>>() {
+    private static final ClassValue<Map<Field, Accessors>> fieldAccessors = new ClassValue<Map<Field, Accessors>>() {
         @Override
-        protected ConcurrentHashMap<Field, Accessors> computeValue(@NotNull Class<?> type) {
+        protected Map<Field, Accessors> computeValue(@NotNull Class<?> type) {
             return new ConcurrentHashMap<>();
         }
     };
