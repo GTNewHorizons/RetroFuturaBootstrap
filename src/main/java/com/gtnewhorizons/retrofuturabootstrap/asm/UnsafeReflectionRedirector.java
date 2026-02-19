@@ -112,8 +112,10 @@ public class UnsafeReflectionRedirector {
             shape = MethodType.methodType(void.class, Object.class, long.class, Object.class);
         }
 
-        MethodHandle mh = self.findVirtual(Unsafe.class, name, shape).bindTo(unsafe);
-        return MethodHandles.insertArguments(mh, 1, base, off);
+        MethodHandle mh = self.findVirtual(Unsafe.class, name, shape);
+        mh = MethodHandles.insertArguments(mh, 0, unsafe, base, off);
+        mh = MethodHandles.dropArguments(mh, 0, Object.class);
+        return mh.asType(MethodType.methodType(void.class, Object.class, type));
     }
 
     private static Accessors getAccessors(MethodHandles.Lookup caller, Field field) throws Throwable {
