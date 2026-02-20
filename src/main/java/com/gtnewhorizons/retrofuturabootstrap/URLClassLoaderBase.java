@@ -89,10 +89,10 @@ public class URLClassLoaderBase extends URLClassLoader {
         if (pkg != null) {
             if (pkg.isSealed()) {
                 if (!pkg.isSealed(codeSourceURL)) {
-                    throw new SecurityException("Sealing violation in package " + packageName);
+                    System.err.println("Sealing violation in package " + packageName);
                 }
             } else if (manifest != null && isSealed(packageName, manifest)) {
-                throw new SecurityException("Sealing violation in already loaded package " + packageName);
+                System.err.println("Sealing violation in already loaded package " + packageName);
             }
         } else {
             return definePackage(packageName, manifest != null ? manifest : new Manifest(), codeSourceURL);

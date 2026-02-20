@@ -117,6 +117,20 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         this.binaryInterfaceNames = Collections.unmodifiableList(interfaceNames);
     }
 
+    /**
+     * Safe factory function wrapping the constructor, returns null when the passed in bytes are not a valid class.
+     */
+    public static @Nullable ClassHeaderMetadata of(byte @Nullable [] bytes) {
+        if (bytes == null) {
+            return null;
+        }
+        try {
+            return new ClassHeaderMetadata(bytes);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     /** Helpers to read big-endian values from class files. */
     public static int u8(byte @NotNull [] arr, int off) {
         return ((int) arr[off]) & 0xff;
