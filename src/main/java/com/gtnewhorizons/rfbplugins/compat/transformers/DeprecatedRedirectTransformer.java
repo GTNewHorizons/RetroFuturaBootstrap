@@ -79,13 +79,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         if (original == null) {
             return false;
         }
-        for (final byte[] pattern : quickScans) {
-            if (ClassHeaderMetadata.hasSubstring(original, pattern)) {
-                return true;
-            }
-        }
-
-        return false;
+        return ClassHeaderMetadata.hasSubstrings(original, quickScans);
     }
 
     @Override
