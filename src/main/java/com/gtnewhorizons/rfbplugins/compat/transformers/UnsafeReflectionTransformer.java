@@ -72,7 +72,11 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return ClassHeaderMetadata.hasSubstrings(classNode.getOriginalBytes(), quickScans);
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
+            return false;
+        }
+        return metadata.hasSubstrings(quickScans);
     }
 
     @Override

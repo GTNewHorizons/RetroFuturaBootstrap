@@ -56,8 +56,11 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
             return false;
         }
 
-        final byte[] original = classNode.getOriginalBytes();
-        return ClassHeaderMetadata.hasSubstring(original, quickScan);
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
+            return false;
+        }
+        return metadata.hasSubstring(quickScan);
     }
 
     @Override
