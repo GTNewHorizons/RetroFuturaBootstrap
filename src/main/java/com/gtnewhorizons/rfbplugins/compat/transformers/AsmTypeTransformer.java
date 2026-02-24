@@ -59,18 +59,16 @@ public class AsmTypeTransformer implements RfbClassTransformer {
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClass(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
+        boolean transformed = false;
         if (node == null) {
-            return;
-        }
-        if (node.methods == null) {
-            return;
+            return false;
         }
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
@@ -83,9 +81,11 @@ public class AsmTypeTransformer implements RfbClassTransformer {
                             && ("getType".equals(mi.name) || "getReturnType".equals(mi.name))
                             && "(Ljava/lang/String;)Lorg/objectweb/asm/Type;".equals(mi.desc)) {
                         mi.owner = "com/gtnewhorizons/retrofuturabootstrap/asm/SafeAsmType";
+                        transformed = true;
                     }
                 }
             }
         }
+        return transformed;
     }
 }

@@ -64,27 +64,26 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClass(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
+        boolean transformed = false;
         if (node == null) {
-            return;
+            return false;
         }
 
         if (node.superName != null) {
             final String superclass = upgradeMap.get(node.superName);
             if (superclass != null) {
                 node.superName = superclass;
+                transformed = true;
             }
         }
 
-        if (node.methods == null) {
-            return;
-        }
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
                 continue;
@@ -95,6 +94,7 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
                     final String upgraded = upgradeMap.get(insn.desc);
                     if (upgraded != null) {
                         insn.desc = upgraded;
+                        transformed = true;
                     }
                 } else if (rawInsn.getType() == AbstractInsnNode.METHOD_INSN) {
                     final MethodInsnNode insn = (MethodInsnNode) rawInsn;
@@ -102,10 +102,13 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
                         final String upgraded = upgradeMap.get(insn.owner);
                         if (upgraded != null) {
                             insn.owner = upgraded;
+                            transformed = true;
                         }
                     }
                 }
             }
         }
+
+        return transformed;
     }
 }

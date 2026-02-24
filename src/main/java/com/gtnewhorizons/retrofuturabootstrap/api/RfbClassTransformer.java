@@ -77,8 +77,9 @@ public interface RfbClassTransformer {
      * @param manifest Manifest of the JAR from which the package of this class came, or null if not present.
      * @param className The name of the transformed class (in the dot-separated format).
      * @param classNode The handle to the lazily ASM-parsed class to modify, and metadata used for class writing.
+     * @return true if the class was transformed.
      */
-    void transformClass(
+    boolean transformClass(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull Context context,
             @Nullable Manifest manifest,
