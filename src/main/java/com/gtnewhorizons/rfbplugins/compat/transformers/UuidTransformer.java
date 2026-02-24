@@ -49,11 +49,17 @@ public class UuidTransformer implements RfbClassTransformer {
         if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
             return false;
         }
-        if (classNode.getOriginalMetadata() != null && classNode.getOriginalMetadata().majorVersion >= Opcodes.V9) {
+
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
             return false;
         }
 
-        return ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), UUID_NAME_BYTES);
+        if (metadata.majorVersion >= Opcodes.V9) {
+            return false;
+        }
+
+        return metadata.hasSubstring(UUID_NAME_BYTES);
     }
 
     @Override

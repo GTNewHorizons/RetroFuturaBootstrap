@@ -50,7 +50,11 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), CLASS_WRITER_BYTES);
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
+            return false;
+        }
+        return metadata.hasSubstring(CLASS_WRITER_BYTES);
     }
 
     @Override

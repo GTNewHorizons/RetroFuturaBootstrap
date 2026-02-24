@@ -16,6 +16,7 @@ import org.objectweb.asm.Opcodes;
  */
 public final class ClassHeaderMetadata implements FastClassAccessor {
 
+    public final byte[] classBytes;
     public final int minorVersion;
     public final int majorVersion;
     public final int constantPoolEntryCount;
@@ -45,13 +46,13 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         if (!isValidClass(bytes)) {
             throw new IllegalArgumentException("Invalid class detected");
         }
+        this.classBytes = bytes;
         this.minorVersion = u16(bytes, Offsets.minorVersionU16);
         this.majorVersion = u16(bytes, Offsets.majorVersionU16);
         this.constantPoolEntryCount = u16(bytes, Offsets.constantPoolCountU16);
         this.constantPoolEntryOffsets = new int[constantPoolEntryCount];
         this.constantPoolEntryTypes = new ConstantPoolEntryTypes[constantPoolEntryCount];
         // scan through CP entries
-        final int cpOff;
         {
             int off = Offsets.constantPoolStart;
             for (int entry = 0; entry < constantPoolEntryCount - 1; entry++) {
@@ -68,15 +69,12 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
                 }
                 off += type.byteLength(bytes, off);
             }
-            cpOff = off;
-            this.constantPoolEndOffset = cpOff;
+            this.constantPoolEndOffset = off;
         }
-        this.accessFlags = u16(bytes, cpOff + Offsets.pastCpAccessFlagsU16);
-        this.thisClassIndex = u16(bytes, cpOff + Offsets.pastCpThisClassU16);
-        this.superClassIndex = u16(bytes, cpOff + Offsets.pastCpSuperClassU16);
-        this.interfacesCount = u16(bytes, cpOff + Offsets.pastCpInterfacesCountU16);
-        this.interfaceIndices = new int[this.interfacesCount];
-        List<String> interfaceNames = new ArrayList<>(this.interfacesCount);
+        this.accessFlags = u16(bytes, this.constantPoolEndOffset + Offsets.pastCpAccessFlagsU16);
+        this.thisClassIndex = u16(bytes, this.constantPoolEndOffset + Offsets.pastCpThisClassU16);
+        this.superClassIndex = u16(bytes, this.constantPoolEndOffset + Offsets.pastCpSuperClassU16);
+        this.interfacesCount = u16(bytes, this.constantPoolEndOffset + Offsets.pastCpInterfacesCountU16);
 
         // Parse this&super names
         if (constantPoolEntryTypes[thisClassIndex - 1] != ConstantPoolEntryTypes.Class) {
@@ -102,8 +100,10 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         }
 
         // Parse interface names
+        List<String> interfaceNames = new ArrayList<>(this.interfacesCount);
+        this.interfaceIndices = new int[this.interfacesCount];
         for (int i = 0; i < this.interfacesCount; i++) {
-            final int interfaceOffset = cpOff + Offsets.pastCpInterfacesList + i * 2;
+            final int interfaceOffset = this.constantPoolEndOffset + Offsets.pastCpInterfacesList + i * 2;
             final int interfaceIndex = u16(bytes, interfaceOffset);
             if (constantPoolEntryTypes[interfaceIndex - 1] != ConstantPoolEntryTypes.Class) {
                 throw new IllegalArgumentException("Interface " + i + " index is not a class ref");
@@ -309,73 +309,47 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     }
 
     /**
-     * Searches for a sub"string" (byte array) in a longer byte array.
-     * @param classBytes The long byte string to search in.
+     * Searches for a sub"string" (byte array) in a class bytes' constant pool.
      * @param substrings The list of substrings to search for.
-     * @return If the substring was found somewhere in the long string.
+     * @return If the substring was found somewhere in the class.
      */
-    public static boolean hasSubstrings(final byte @Nullable [] classBytes, final byte @NotNull [][] substrings) {
-        if (classBytes == null || classBytes.length < Offsets.constantPoolStart) {
-            return false;
-        }
-
-        // Loop through each entry in the constant pool, getting the size and content before jumping to the next.
-        // Strings get scanned for the searched constants, and if found result in an early exit.
-        final int constantsCount = u16(classBytes, Offsets.constantPoolCountU16);
-        int offset = Offsets.constantPoolStart;
-        for (int i = 1; i < constantsCount; ++i) {
-            ConstantPoolEntryTypes type = ConstantPoolEntryTypes.parse(classBytes, offset);
-            int size;
-
-            switch (type) {
-                case Utf8: {
-                    final int strLen = u16(classBytes, offset + 1);
-                    final int start = offset + 3;
-                    size = strLen + 3;
-
-                    for (byte[] bytes : substrings) {
-                        if (strLen < bytes.length) {
-                            continue;
-                        }
-
-                        byte first = bytes[0];
-                        int end = start + strLen - bytes.length;
-                        for (int j = start; j <= end; j++) {
-                            if (classBytes[j] != first) continue;
-                            int k = 1;
-                            while (k < bytes.length && classBytes[j + k] == bytes[k]) k++;
-                            if (k == bytes.length) return true;
-                        }
-                    }
-                    break;
-                }
-                case Long:
-                case Double: {
-                    // Longs and Doubles take up 2 constant pool indices
-                    ++i;
-                    size = type.maybeByteLength + 1;
-                    break;
-                }
-                default: {
-                    size = type.maybeByteLength + 1;
-                    break;
-                }
+    public boolean hasSubstrings(final byte @NotNull [][] substrings) {
+        for (int i = 0; i < constantPoolEntryCount - 1; i++) {
+            final ConstantPoolEntryTypes type = constantPoolEntryTypes[i];
+            if (type != ConstantPoolEntryTypes.Utf8) {
+                continue;
             }
 
-            offset += size;
+            final int offset = constantPoolEntryOffsets[i];
+            final int start = offset + 3;
+            final int length = type.byteLength(classBytes, offset) - 3;
+
+            for (final byte[] substring : substrings) {
+                if (length < substring.length) {
+                    continue;
+                }
+
+                final byte first = substring[0];
+                final int end = start + length - substring.length;
+                for (int j = start; j <= end; j++) {
+                    if (classBytes[j] != first) continue;
+                    int k = 1;
+                    while (k < substring.length && classBytes[j + k] == substring[k]) k++;
+                    if (k == substring.length) return true;
+                }
+            }
         }
 
         return false;
     }
 
     /**
-     * Searches for a sub"string" (byte array) in a longer byte array.
-     * @param classBytes The long byte string to search in.
+     * Searches for a sub"string" (byte array) in a class bytes' constant pool.
      * @param substring The substring to search for.
-     * @return If the substring was found somewhere in the long string.
+     * @return If the substring was found somewhere in the class.
      */
-    public static boolean hasSubstring(final byte @Nullable [] classBytes, final byte @NotNull [] substring) {
-        return hasSubstrings(classBytes, new byte[][] {substring});
+    public boolean hasSubstring(final byte @NotNull [] substring) {
+        return hasSubstrings(new byte[][] {substring});
     }
 
     public boolean hasInvokeDynamicEntry() {
