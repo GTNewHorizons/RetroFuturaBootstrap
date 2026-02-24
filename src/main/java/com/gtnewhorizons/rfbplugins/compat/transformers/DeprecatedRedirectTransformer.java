@@ -75,11 +75,11 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
             return false;
         }
 
-        final byte[] original = classNode.getOriginalBytes();
-        if (original == null) {
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
             return false;
         }
-        return ClassHeaderMetadata.hasSubstrings(original, quickScans);
+        return metadata.hasSubstrings(quickScans);
     }
 
     @Override

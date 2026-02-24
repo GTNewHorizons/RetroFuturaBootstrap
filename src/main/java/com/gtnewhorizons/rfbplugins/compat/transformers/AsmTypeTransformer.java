@@ -44,13 +44,18 @@ public class AsmTypeTransformer implements RfbClassTransformer {
         if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
             return false;
         }
-        // Assume classes for java 9+ were tested against a newer asm.
-        if (classNode.getOriginalMetadata() != null && classNode.getOriginalMetadata().majorVersion >= Opcodes.V9) {
+
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
             return false;
         }
 
-        final byte[] original = classNode.getOriginalBytes();
-        return ClassHeaderMetadata.hasSubstring(original, quickScan);
+        // Assume classes for java 9+ were tested against a newer asm.
+        if (metadata.majorVersion >= Opcodes.V9) {
+            return false;
+        }
+
+        return metadata.hasSubstring(quickScan);
     }
 
     @Override
