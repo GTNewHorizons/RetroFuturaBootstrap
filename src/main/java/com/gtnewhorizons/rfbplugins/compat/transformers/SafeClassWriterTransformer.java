@@ -58,22 +58,23 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClass(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
+        boolean transformed = false;
         if (node == null) {
-            return;
+            return false;
         }
+
         if (node.superName.equals(CLASS_WRITER_NAME)) {
             node.superName = SAFE_WRITER_NAME;
+            transformed = true;
         }
-        if (node.methods == null) {
-            return;
-        }
+
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
                 continue;
@@ -83,14 +84,18 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
                     final TypeInsnNode insn = (TypeInsnNode) rawInsn;
                     if (insn.desc.equals(CLASS_WRITER_NAME)) {
                         insn.desc = SAFE_WRITER_NAME;
+                        transformed = true;
                     }
                 } else if (rawInsn.getType() == AbstractInsnNode.METHOD_INSN) {
                     final MethodInsnNode insn = (MethodInsnNode) rawInsn;
                     if (insn.owner.equals(CLASS_WRITER_NAME) && insn.name.equals("<init>")) {
                         insn.owner = SAFE_WRITER_NAME;
+                        transformed = true;
                     }
                 }
             }
         }
+
+        return transformed;
     }
 }
