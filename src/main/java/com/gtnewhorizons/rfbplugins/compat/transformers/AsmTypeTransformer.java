@@ -23,8 +23,9 @@ public class AsmTypeTransformer implements RfbClassTransformer {
     /** Attribute to set to "true" on a JAR to skip class transforms from this transformer entirely */
     public static final Attributes.Name MANIFEST_SAFE_ATTRIBUTE = new Attributes.Name("Has-Safe-AsmGetTypeUsage");
 
-    private static final ClassHeaderMetadata.NeedleIndex scanIndex =
-            new ClassHeaderMetadata.NeedleIndex("org/objectweb/asm/Type".getBytes(StandardCharsets.UTF_8));
+    private static final ClassHeaderMetadata.NeedleIndex scanIndex = new ClassHeaderMetadata.NeedleIndex(
+                    "(Ljava/lang/String;)Lorg/objectweb/asm/Type;".getBytes(StandardCharsets.UTF_8))
+            .exactMatch();
 
     @Pattern("[a-z0-9-]+")
     @Override

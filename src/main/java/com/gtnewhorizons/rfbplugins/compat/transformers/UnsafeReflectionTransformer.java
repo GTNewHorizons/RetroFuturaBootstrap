@@ -42,7 +42,7 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
     final Set<String> REDIRECT_FIELD_METHODS = new HashSet<>();
 
     final ClassHeaderMetadata.NeedleIndex scanIndex =
-            new ClassHeaderMetadata.NeedleIndex(new byte[][] {CLASS_NAME_BYTES, FIELD_NAME_BYTES});
+            new ClassHeaderMetadata.NeedleIndex(new byte[][] {CLASS_NAME_BYTES, FIELD_NAME_BYTES}).exactMatch();
 
     {
         // Redirect set methods with a type that can be coerced to int, and get methods with types int can be coerced to
