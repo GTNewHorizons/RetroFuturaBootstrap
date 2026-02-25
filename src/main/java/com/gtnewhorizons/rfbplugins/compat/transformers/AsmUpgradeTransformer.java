@@ -7,6 +7,7 @@ import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UpgradedTreeNodes;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UpgradedVisitors;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.jar.Manifest;
@@ -26,10 +27,8 @@ import org.objectweb.asm.tree.TypeInsnNode;
  * This allows those transformers to work on newer classes.
  */
 public class AsmUpgradeTransformer implements RfbClassTransformer {
-    private static final ClassHeaderMetadata.NeedleIndex scanIndex =
-            new ClassHeaderMetadata.NeedleIndex("org/objectweb/asm".getBytes(StandardCharsets.UTF_8));
-
     private final Map<String, String> upgradeMap = new HashMap<>();
+    private final ClassHeaderMetadata.NeedleIndex scanIndex;
 
     public AsmUpgradeTransformer() {
         for (Class<?> visitor : UpgradedVisitors.ALL_VISITORS) {
@@ -38,6 +37,12 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
         for (Class<?> visitor : UpgradedTreeNodes.ALL_NODES) {
             upgradeMap.put(Type.getInternalName(visitor.getSuperclass()), Type.getInternalName(visitor));
         }
+
+        scanIndex = new ClassHeaderMetadata.NeedleIndex(
+                        Arrays.stream(upgradeMap.keySet().toArray(new String[0]))
+                                .map(s -> s.getBytes(StandardCharsets.UTF_8))
+                                .toArray(byte[][]::new))
+                .exactMatch();
     }
 
     @Pattern("[a-z0-9-]+")
