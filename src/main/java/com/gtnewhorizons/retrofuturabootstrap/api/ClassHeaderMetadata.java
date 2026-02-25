@@ -308,12 +308,85 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         return u16(classBytes, Offsets.majorVersionU16);
     }
 
+    public static final class NeedleIndex {
+        private static final int[] EMPTY_BUCKET = new int[0];
+
+        final byte[][] needles;
+        final int[][] byFirst; // 256 buckets, indices into needles[]
+        int minNeedleLen = Integer.MAX_VALUE;
+
+        public NeedleIndex(byte[] needle) {
+            this(new byte[][] {needle});
+        }
+
+        public NeedleIndex(byte[][] needles) {
+            this.needles = needles;
+
+            @SuppressWarnings("unchecked")
+            List<Integer>[] tmp = new List[256];
+            for (int i = 0; i < 256; i++) {
+                tmp[i] = new ArrayList<>();
+            }
+
+            for (int i = 0; i < needles.length; i++) {
+                byte[] n = needles[i];
+                int len = n.length;
+
+                if (len < this.minNeedleLen) this.minNeedleLen = len;
+                tmp[n[0] & 0xFF].add(i);
+            }
+
+            this.byFirst = new int[256][];
+            for (int b = 0; b < 256; b++) {
+                List<Integer> list = tmp[b];
+                int size = list.size();
+
+                if (size == 0) {
+                    byFirst[b] = EMPTY_BUCKET;
+                    continue;
+                }
+
+                int[] arr = new int[size];
+                for (int j = 0; j < size; j++) {
+                    arr[j] = list.get(j);
+                }
+                byFirst[b] = arr;
+            }
+        }
+
+        public boolean matchesAny(byte[] hay, int start, int len) {
+            if (len < minNeedleLen) {
+                return false;
+            }
+
+            final int end = start + len;
+            final int lastStart = end - minNeedleLen;
+
+            for (int pos = start; pos <= lastStart; pos++) {
+                int[] bucket = byFirst[hay[pos] & 0xFF];
+                final int remaining = end - pos;
+
+                for (int idx : bucket) {
+                    byte[] n = needles[idx];
+                    int nLen = n.length;
+                    if (nLen > remaining) continue;
+
+                    int k = 1;
+                    while (k < nLen && hay[pos + k] == n[k]) k++;
+                    if (k == nLen) return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
     /**
      * Searches for a sub"string" (byte array) in a class bytes' constant pool.
-     * @param substrings The list of substrings to search for.
+     * @param needleIndex The list of substrings to search for.
      * @return If the substring was found somewhere in the class.
      */
-    public boolean hasSubstrings(final byte @NotNull [][] substrings) {
+    public boolean hasSubstrings(final NeedleIndex needleIndex) {
         for (int i = 0; i < constantPoolEntryCount - 1; i++) {
             final ConstantPoolEntryTypes type = constantPoolEntryTypes[i];
             if (type != ConstantPoolEntryTypes.Utf8) {
@@ -322,34 +395,14 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
 
             final int offset = constantPoolEntryOffsets[i];
             final int start = offset + 3;
-            final int length = type.byteLength(classBytes, offset) - 3;
+            final int length = u16(classBytes, offset + 1);
 
-            for (final byte[] substring : substrings) {
-                if (length < substring.length) {
-                    continue;
-                }
-
-                final byte first = substring[0];
-                final int end = start + length - substring.length;
-                for (int j = start; j <= end; j++) {
-                    if (classBytes[j] != first) continue;
-                    int k = 1;
-                    while (k < substring.length && classBytes[j + k] == substring[k]) k++;
-                    if (k == substring.length) return true;
-                }
+            if (needleIndex.matchesAny(classBytes, start, length)) {
+                return true;
             }
         }
 
         return false;
-    }
-
-    /**
-     * Searches for a sub"string" (byte array) in a class bytes' constant pool.
-     * @param substring The substring to search for.
-     * @return If the substring was found somewhere in the class.
-     */
-    public boolean hasSubstring(final byte @NotNull [] substring) {
-        return hasSubstrings(new byte[][] {substring});
     }
 
     public boolean hasInvokeDynamicEntry() {

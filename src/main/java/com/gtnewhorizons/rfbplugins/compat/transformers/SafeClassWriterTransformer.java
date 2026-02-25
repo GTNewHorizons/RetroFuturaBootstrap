@@ -33,8 +33,9 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
     }
 
     final String CLASS_WRITER_NAME = ClassWriter.class.getName().replace('.', '/');
-    final byte[] CLASS_WRITER_BYTES = CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8);
     final String SAFE_WRITER_NAME = SafeAsmClassWriter.class.getName().replace('.', '/');
+    final ClassHeaderMetadata.NeedleIndex scanIndex =
+            new ClassHeaderMetadata.NeedleIndex(CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8));
 
     @Override
     public boolean shouldTransformClass(
@@ -54,7 +55,7 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
         if (metadata == null) {
             return false;
         }
-        return metadata.hasSubstring(CLASS_WRITER_BYTES);
+        return metadata.hasSubstrings(scanIndex);
     }
 
     @Override
