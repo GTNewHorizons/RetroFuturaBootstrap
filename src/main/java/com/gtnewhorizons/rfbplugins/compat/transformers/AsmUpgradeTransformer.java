@@ -26,7 +26,8 @@ import org.objectweb.asm.tree.TypeInsnNode;
  * This allows those transformers to work on newer classes.
  */
 public class AsmUpgradeTransformer implements RfbClassTransformer {
-    private static final byte[] quickScan = "org/objectweb/asm".getBytes(StandardCharsets.UTF_8);
+    private static final ClassHeaderMetadata.NeedleIndex scanIndex =
+            new ClassHeaderMetadata.NeedleIndex("org/objectweb/asm".getBytes(StandardCharsets.UTF_8));
 
     private final Map<String, String> upgradeMap = new HashMap<>();
 
@@ -60,7 +61,7 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
         if (metadata == null) {
             return false;
         }
-        return metadata.hasSubstring(quickScan);
+        return metadata.hasSubstrings(scanIndex);
     }
 
     @Override

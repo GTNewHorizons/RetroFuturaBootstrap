@@ -30,9 +30,9 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         excludedPackages = Stream.concat(Arrays.stream(fromPrefixes), Arrays.stream(toPrefixes))
                 .map(s -> s.replace('/', '.'))
                 .toArray(String[]::new);
-        quickScans = Arrays.stream(fromPrefixes)
+        scanIndex = new ClassHeaderMetadata.NeedleIndex(Arrays.stream(fromPrefixes)
                 .map(s -> s.getBytes(StandardCharsets.UTF_8))
-                .toArray(byte[][]::new);
+                .toArray(byte[][]::new));
     }
 
     @Pattern("[a-z0-9-]+")
@@ -51,7 +51,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         "com/gtnewhorizons/retrofuturabootstrap/asm/DummyCompiler",
         "com/gtnewhorizons/retrofuturabootstrap/SecurityManager"
     };
-    final byte[][] quickScans;
+    final ClassHeaderMetadata.NeedleIndex scanIndex;
     final String[] excludedPackages;
 
     @Override
@@ -74,7 +74,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
             return false;
         }
 
-        return metadata.hasSubstrings(quickScans);
+        return metadata.hasSubstrings(scanIndex);
     }
 
     @Override

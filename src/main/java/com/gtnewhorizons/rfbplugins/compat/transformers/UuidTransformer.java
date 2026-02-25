@@ -33,8 +33,9 @@ public class UuidTransformer implements RfbClassTransformer {
     }
 
     final String UUID_NAME = Type.getInternalName(UUID.class);
-    final byte[] UUID_NAME_BYTES = UUID_NAME.getBytes(StandardCharsets.UTF_8);
     final String REDIRECTION_NAME = Type.getInternalName(UuidStringConstructor.class);
+    final ClassHeaderMetadata.NeedleIndex scanIndex =
+            new ClassHeaderMetadata.NeedleIndex(UUID_NAME.getBytes(StandardCharsets.UTF_8));
 
     @Override
     public boolean shouldTransformClass(
@@ -59,7 +60,7 @@ public class UuidTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return metadata.hasSubstring(UUID_NAME_BYTES);
+        return metadata.hasSubstrings(scanIndex);
     }
 
     @Override
