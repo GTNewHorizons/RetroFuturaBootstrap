@@ -35,7 +35,7 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
     final String CLASS_WRITER_NAME = ClassWriter.class.getName().replace('.', '/');
     final String SAFE_WRITER_NAME = SafeAsmClassWriter.class.getName().replace('.', '/');
     final ClassHeaderMetadata.NeedleIndex scanIndex =
-            new ClassHeaderMetadata.NeedleIndex(CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8));
+            new ClassHeaderMetadata.NeedleIndex(CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8)).exactMatch();
 
     @Override
     public boolean shouldTransformClass(
