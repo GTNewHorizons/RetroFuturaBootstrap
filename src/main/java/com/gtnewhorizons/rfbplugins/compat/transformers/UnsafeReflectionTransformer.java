@@ -35,29 +35,30 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
     }
 
     final String CLASS_NAME = Type.getInternalName(Class.class);
-    final byte[] CLASS_NAME_BYTES = CLASS_NAME.getBytes(StandardCharsets.UTF_8);
     final String FIELD_NAME = Type.getInternalName(Field.class);
-    final byte[] FIELD_NAME_BYTES = FIELD_NAME.getBytes(StandardCharsets.UTF_8);
     final String REDIRECTION_NAME = Type.getInternalName(UnsafeReflectionRedirector.class);
-    final Set<String> REDIRECT_FIELD_METHODS = new HashSet<>();
+    final String CLASS_GET_DECLARED_FIELD_STRING_DESC = "(Ljava/lang/String;)Ljava/lang/reflect/Field;";
+    final String CLASS_GET_DECLARED_FIELD_EMPTY_DESC = "()[Ljava/lang/reflect/Field;";
 
-    final ClassHeaderMetadata.NeedleIndex scanIndex =
-            new ClassHeaderMetadata.NeedleIndex(new byte[][] {CLASS_NAME_BYTES, FIELD_NAME_BYTES}).exactMatch();
+    // Redirect set methods with a type that can be coerced to int, and get methods with types int can be coerced to
+    final Set<String> REDIRECT_FIELD_METHODS = new HashSet<>(Arrays.asList(
+            "setInt(Ljava/lang/Object;I)V",
+            "setByte(Ljava/lang/Object;B)V",
+            "setShort(Ljava/lang/Object;S)V",
+            "setChar(Ljava/lang/Object;C)V",
+            "getInt(Ljava/lang/Object;)I",
+            "getLong(Ljava/lang/Object;)J",
+            "getFloat(Ljava/lang/Object;)F",
+            "getDouble(Ljava/lang/Object;)D",
+            "set(Ljava/lang/Object;Ljava/lang/Object;)V",
+            "get(Ljava/lang/Object;)Ljava/lang/Object"));
 
-    {
-        // Redirect set methods with a type that can be coerced to int, and get methods with types int can be coerced to
-        REDIRECT_FIELD_METHODS.addAll(Arrays.asList(
-                "setInt(Ljava/lang/Object;I)V",
-                "setByte(Ljava/lang/Object;B)V",
-                "setShort(Ljava/lang/Object;S)V",
-                "setChar(Ljava/lang/Object;C)V",
-                "getInt(Ljava/lang/Object;)I",
-                "getLong(Ljava/lang/Object;)J",
-                "getFloat(Ljava/lang/Object;)F",
-                "getDouble(Ljava/lang/Object;)D",
-                "set(Ljava/lang/Object;Ljava/lang/Object;)V",
-                "get(Ljava/lang/Object;)Ljava/lang/Object"));
-    }
+    final ClassHeaderMetadata.NeedleIndex scanIndex = new ClassHeaderMetadata.NeedleIndex(new byte[][] {
+                CLASS_GET_DECLARED_FIELD_STRING_DESC.getBytes(StandardCharsets.UTF_8),
+                CLASS_GET_DECLARED_FIELD_EMPTY_DESC.getBytes(StandardCharsets.UTF_8),
+                FIELD_NAME.getBytes(StandardCharsets.UTF_8)
+            })
+            .exactMatch();
 
     @Override
     public boolean shouldTransformClass(
@@ -102,7 +103,7 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
                     final MethodInsnNode insn = (MethodInsnNode) rawInsn;
                     if (insn.owner.equals(CLASS_NAME)
                             && insn.name.equals("getDeclaredField")
-                            && insn.desc.equals("(Ljava/lang/String;)Ljava/lang/reflect/Field;")) {
+                            && insn.desc.equals(CLASS_GET_DECLARED_FIELD_STRING_DESC)) {
                         // getDeclaredField(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;
                         insn.setOpcode(Opcodes.INVOKESTATIC);
                         insn.owner = REDIRECTION_NAME;
@@ -110,7 +111,7 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
                         transformed = true;
                     } else if (insn.owner.equals(CLASS_NAME)
                             && insn.name.equals("getDeclaredFields")
-                            && insn.desc.equals("()[Ljava/lang/reflect/Field;")) {
+                            && insn.desc.equals(CLASS_GET_DECLARED_FIELD_EMPTY_DESC)) {
                         // getDeclaredFields(Ljava/lang/Class;)[Ljava/lang/reflect/Field;
                         insn.setOpcode(Opcodes.INVOKESTATIC);
                         insn.owner = REDIRECTION_NAME;
