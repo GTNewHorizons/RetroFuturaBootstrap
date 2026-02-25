@@ -34,8 +34,9 @@ public class UuidTransformer implements RfbClassTransformer {
 
     final String UUID_NAME = Type.getInternalName(UUID.class);
     final String REDIRECTION_NAME = Type.getInternalName(UuidStringConstructor.class);
-    final ClassHeaderMetadata.NeedleIndex scanIndex =
-            new ClassHeaderMetadata.NeedleIndex(UUID_NAME.getBytes(StandardCharsets.UTF_8));
+    final ClassHeaderMetadata.NeedleIndex scanIndex = new ClassHeaderMetadata.NeedleIndex(
+                    "(Ljava/lang/String;)Ljava/util/UUID;".getBytes(StandardCharsets.UTF_8))
+            .exactMatch();
 
     @Override
     public boolean shouldTransformClass(

@@ -312,8 +312,9 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         private static final int[] EMPTY_BUCKET = new int[0];
 
         final byte[][] needles;
-        final int[][] byFirst; // 256 buckets, indices into needles[]
+        final int[][][] byFirstSecond; // [first][second] -> indices into needles[]
         int minNeedleLen = Integer.MAX_VALUE;
+        boolean exactMatch;
 
         public NeedleIndex(byte[] needle) {
             this(new byte[][] {needle});
@@ -323,35 +324,58 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
             this.needles = needles;
 
             @SuppressWarnings("unchecked")
-            List<Integer>[] tmp = new List[256];
-            for (int i = 0; i < 256; i++) {
-                tmp[i] = new ArrayList<>();
-            }
+            List<Integer>[][] tmp = new List[256][256];
 
             for (int i = 0; i < needles.length; i++) {
                 byte[] n = needles[i];
                 int len = n.length;
 
                 if (len < this.minNeedleLen) this.minNeedleLen = len;
-                tmp[n[0] & 0xFF].add(i);
+
+                int first = n[0] & 0xFF;
+                int second = n[1] & 0xFF;
+
+                List<Integer> list = tmp[first][second];
+                if (list == null) {
+                    list = new ArrayList<>();
+                    tmp[first][second] = list;
+                }
+                list.add(i);
             }
 
-            this.byFirst = new int[256][];
-            for (int b = 0; b < 256; b++) {
-                List<Integer> list = tmp[b];
-                int size = list.size();
+            this.byFirstSecond = new int[256][][];
 
-                if (size == 0) {
-                    byFirst[b] = EMPTY_BUCKET;
-                    continue;
+            for (int first = 0; first < 256; first++) {
+                List<Integer>[] row = tmp[first];
+                int[][] buckets = new int[256][];
+                boolean hasAny = false;
+
+                for (int second = 0; second < 256; second++) {
+                    List<Integer> list = row[second];
+                    int size = list == null ? 0 : list.size();
+
+                    if (size == 0) {
+                        buckets[second] = EMPTY_BUCKET;
+                        continue;
+                    }
+
+                    int[] arr = new int[size];
+                    for (int j = 0; j < size; j++) {
+                        arr[j] = list.get(j);
+                    }
+                    buckets[second] = arr;
+                    hasAny = true;
                 }
 
-                int[] arr = new int[size];
-                for (int j = 0; j < size; j++) {
-                    arr[j] = list.get(j);
+                if (hasAny) {
+                    this.byFirstSecond[first] = buckets;
                 }
-                byFirst[b] = arr;
             }
+        }
+
+        public NeedleIndex exactMatch() {
+            this.exactMatch = true;
+            return this;
         }
 
         public boolean matchesAny(byte[] hay, int start, int len) {
@@ -359,11 +383,20 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
                 return false;
             }
 
+            if (exactMatch) {
+                return matchesAnyExact(hay, start, len);
+            }
+
             final int end = start + len;
             final int lastStart = end - minNeedleLen;
 
             for (int pos = start; pos <= lastStart; pos++) {
-                int[] bucket = byFirst[hay[pos] & 0xFF];
+                int[][] row = byFirstSecond[hay[pos] & 0xFF];
+                if (row == null) {
+                    continue;
+                }
+
+                int[] bucket = row[hay[pos + 1] & 0xFF];
                 final int remaining = end - pos;
 
                 for (int idx : bucket) {
@@ -371,10 +404,26 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
                     int nLen = n.length;
                     if (nLen > remaining) continue;
 
-                    int k = 1;
+                    int k = 2;
                     while (k < nLen && hay[pos + k] == n[k]) k++;
                     if (k == nLen) return true;
                 }
+            }
+
+            return false;
+        }
+
+        // exact-match needles: the whole UTF8 entry must match
+        public boolean matchesAnyExact(byte[] hay, int start, int len) {
+            for (byte[] n : needles) {
+                int nLen = n.length;
+                if (nLen != len) {
+                    continue;
+                }
+
+                int k = 0;
+                while (k < nLen && hay[start + k] == n[k]) k++;
+                if (k == nLen) return true;
             }
 
             return false;
