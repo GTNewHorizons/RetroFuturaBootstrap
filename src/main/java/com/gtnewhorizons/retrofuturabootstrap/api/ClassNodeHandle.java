@@ -88,7 +88,6 @@ public final class ClassNodeHandle {
     /** Overwrites the parsed node of the currently processed class. */
     public void setNode(@Nullable ClassNode node) {
         initialized = true;
-        dirty = true;
         this.node = node;
         if (node == null) {
             this.accessor = null;
@@ -102,7 +101,7 @@ public final class ClassNodeHandle {
      * Returns the original bytes if some of the transformers returned true in transformClassIfNeeded.
      */
     public byte @Nullable [] computeBytes() {
-        if (!dirty) {
+        if (!dirty || !initialized) {
             return originalBytes;
         }
         if (node == null) {
