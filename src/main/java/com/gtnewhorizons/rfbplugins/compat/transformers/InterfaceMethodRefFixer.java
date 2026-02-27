@@ -1,10 +1,12 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.FastClassAccessor;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.rfbplugins.compat.ModernJavaCompatibilityPlugin;
+import java.util.HashMap;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import org.intellij.lang.annotations.Pattern;
@@ -48,15 +50,21 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
         if (!classNode.isPresent()) {
             return false;
         }
-        if (classNode.getOriginalMetadata() == null) {
+
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
+            return false;
+        }
+
+        // Assume classes for java 9+ were not plagued by the asm 5.0 interfacemethodref bug.
+        if (metadata.majorVersion >= Opcodes.V9) {
             return false;
         }
         if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
             return false;
         }
 
-        // Assume classes for java 9+ were not plagued by the asm 5.0 interfacemethodref bug.
-        return classNode.getOriginalMetadata().majorVersion < Opcodes.V9;
+        return metadata.hasInvokeDynamicEntry();
     }
 
     @Override
@@ -67,66 +75,130 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
-        if (node == null) {
+        if (node == null || node.methods == null) {
             return;
         }
-        final boolean iAmAnInterface = ((node.access & Opcodes.ACC_INTERFACE) != 0);
+
+        final boolean classIsInterface = (node.access & Opcodes.ACC_INTERFACE) != 0;
         final String internalClassName = node.name;
-        if (node.methods == null) {
-            return;
-        }
+
+        // classLoader.findClassMetadata() reads the class bytes and constructs ClassHeaderMetadata with expensive
+        // <init> when the class hasn't been loaded by this loader. Furthermore, this method doesn't load the class,
+        // so every call it reads the bytes again, luckily from cache, but creates expensive ClassHeaderMetadata again.
+        // Preventing ClassHeaderMetadata re-instantiation for the same class even per class file prevents nearly
+        // 10,000 instantiations during the full pack load
+        final HashMap<String, Boolean> ownerInterfaceCache = new HashMap<>();
+
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
                 continue;
             }
+
             for (AbstractInsnNode insn : method.instructions) {
-                validateInstruction(classLoader, internalClassName, iAmAnInterface, insn);
+                if (insn instanceof InvokeDynamicInsnNode) {
+                    fixInvokeDynamicInsn(
+                            classLoader,
+                            internalClassName,
+                            classIsInterface,
+                            ownerInterfaceCache,
+                            (InvokeDynamicInsnNode) insn);
+                }
             }
         }
     }
 
-    private void validateInstruction(
+    private void fixInvokeDynamicInsn(
             ExtensibleClassLoader classLoader,
             String internalClassName,
-            boolean iAmAnInterface,
-            AbstractInsnNode rawInsn) {
-        // no-op
-        if (rawInsn.getType() == AbstractInsnNode.INVOKE_DYNAMIC_INSN) {
-            final InvokeDynamicInsnNode insn = (InvokeDynamicInsnNode) rawInsn;
-            insn.bsm = fixHandle(classLoader, internalClassName, iAmAnInterface, insn.bsm);
-            if (insn.bsmArgs != null) {
-                for (int i = 0; i < insn.bsmArgs.length; i++) {
-                    final Object arg = insn.bsmArgs[i];
-                    if (arg instanceof Handle) {
-                        insn.bsmArgs[i] = fixHandle(classLoader, internalClassName, iAmAnInterface, (Handle) arg);
-                    }
+            boolean classIsInterface,
+            HashMap<String, Boolean> ownerInterfaceCache,
+            InvokeDynamicInsnNode insn) {
+        final Handle fixedBootstrapMethod =
+                fixHandleIfNeeded(classLoader, internalClassName, classIsInterface, ownerInterfaceCache, insn.bsm);
+
+        if (fixedBootstrapMethod != null) {
+            insn.bsm = fixedBootstrapMethod;
+        }
+
+        if (insn.bsmArgs != null) {
+            for (int i = 0; i < insn.bsmArgs.length; i++) {
+                final Object arg = insn.bsmArgs[i];
+                if (!(arg instanceof Handle)) {
+                    continue;
+                }
+
+                final Handle fixedBootstrapArg = fixHandleIfNeeded(
+                        classLoader, internalClassName, classIsInterface, ownerInterfaceCache, (Handle) arg);
+
+                if (fixedBootstrapArg != null) {
+                    insn.bsmArgs[i] = fixedBootstrapArg;
                 }
             }
         }
     }
 
-    private Handle fixHandle(
-            ExtensibleClassLoader classLoader, String internalClassName, boolean iAmAnInterface, Handle handle) {
-        if (!handle.isInterface()) {
-            final boolean fixSelfReference = handle.getOwner().equals(internalClassName) && iAmAnInterface;
-            boolean fixJavaReference = false;
-            if (!fixSelfReference) {
-                final String regularName = handle.getOwner().replace('/', '.');
-                final FastClassAccessor javaClass = classLoader.findClassMetadata(regularName);
-                if (javaClass != null && javaClass.isInterface()) {
-                    fixJavaReference = true;
-                }
-            }
-            if (fixSelfReference || fixJavaReference) {
-                ModernJavaCompatibilityPlugin.log.debug(
-                        "Fixed a broken InterfaceMethodRef {} -> {}#{} ({})",
-                        internalClassName,
-                        handle.getOwner(),
-                        handle.getName(),
-                        handle.getDesc());
-                return new Handle(handle.getTag(), handle.getOwner(), handle.getName(), handle.getDesc(), true);
-            }
+    @Nullable
+    private Handle fixHandleIfNeeded(
+            ExtensibleClassLoader classLoader,
+            String internalClassName,
+            boolean classIsInterface,
+            HashMap<String, Boolean> ownerInterfaceCache,
+            Handle handle) {
+        if (handle.isInterface()) {
+            return null;
         }
-        return handle;
+
+        // Per JVMS §4.4.8:
+        //
+        // - REF_invokeInterface must reference CONSTANT_InterfaceMethodref.
+        // - REF_invokeStatic and REF_invokeSpecial:
+        //   * must reference CONSTANT_Methodref if the owner is a class;
+        //   * must reference CONSTANT_InterfaceMethodref if the owner is an interface.
+        //   (but when the class file version is < 52, only CONSTANT_Methodref can be referenced)
+        // - REF_invokeVirtual, REF_newInvokeSpecial must reference CONSTANT_Methodref.
+        //
+        // As we're fixing incorrect references to CONSTANT_Methodref when they should be CONSTANT_InterfaceMethodref,
+        // we can ignore non-invoke handles and invoke handles which cannot reference CONSTANT_InterfaceMethodref
+        int tag = handle.getTag();
+        if (tag != Opcodes.H_INVOKEINTERFACE && tag != Opcodes.H_INVOKESTATIC && tag != Opcodes.H_INVOKESPECIAL) {
+            return null;
+        }
+
+        // We know that LambdaMetafactory is not an interface, and it's a common bootstrap method owner,
+        // so we can skip a fair bit of FastClassAccessor.ofLoaded(cachedClass) class constructions
+        final String owner = handle.getOwner();
+        if (owner.equals("java/lang/invoke/LambdaMetafactory")) {
+            return null;
+        }
+
+        final boolean shouldBeInterface = (classIsInterface && owner.equals(internalClassName))
+                || ownerIsInterface(classLoader, ownerInterfaceCache, owner);
+
+        if (!shouldBeInterface) {
+            return null;
+        }
+
+        ModernJavaCompatibilityPlugin.log.debug(
+                "Fixed a broken InterfaceMethodRef {} -> {}#{} ({})",
+                internalClassName,
+                owner,
+                handle.getName(),
+                handle.getDesc());
+
+        return new Handle(handle.getTag(), owner, handle.getName(), handle.getDesc(), true);
+    }
+
+    private static boolean ownerIsInterface(
+            ExtensibleClassLoader classLoader, HashMap<String, Boolean> ownerInterfaceCache, String ownerInternalName) {
+        final Boolean cached = ownerInterfaceCache.get(ownerInternalName);
+        if (cached != null) {
+            return cached;
+        }
+
+        final FastClassAccessor metadata = classLoader.findClassMetadata(ownerInternalName.replace('/', '.'));
+        final boolean isInterface = metadata != null && metadata.isInterface();
+
+        ownerInterfaceCache.put(ownerInternalName, isInterface);
+        return isInterface;
     }
 }
