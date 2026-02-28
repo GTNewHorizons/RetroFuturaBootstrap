@@ -41,6 +41,8 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
     final String REDIRECTION_NAME = Type.getInternalName(UnsafeReflectionRedirector.class);
     final Set<String> REDIRECT_FIELD_METHODS = new HashSet<>();
 
+    final byte[][] quickScans = new byte[][] {CLASS_NAME_BYTES, FIELD_NAME_BYTES};
+
     {
         // Redirect set methods with a type that can be coerced to int, and get methods with types int can be coerced to
         REDIRECT_FIELD_METHODS.addAll(Arrays.asList(
@@ -70,8 +72,7 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), CLASS_NAME_BYTES)
-                || ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), FIELD_NAME_BYTES);
+        return ClassHeaderMetadata.hasSubstrings(classNode.getOriginalBytes(), quickScans);
     }
 
     @Override
