@@ -13,12 +13,8 @@ import java.util.jar.Manifest;
 import org.intellij.lang.annotations.Pattern;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.*;
+import org.objectweb.asm.tree.*;
 
 /**
  * Replaces the broken "remove final from Field.modifiers" approach with a redirection to our Unsafe-based method.
@@ -111,9 +107,18 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
                             && REDIRECT_FIELD_METHODS.contains(insn.name + insn.desc)) {
                         // add a Field argument at the start
                         String newDesc = "(Ljava/lang/reflect/Field;" + insn.desc.substring(1);
-                        insn.setOpcode(Opcodes.INVOKESTATIC);
-                        insn.owner = REDIRECTION_NAME;
-                        insn.desc = newDesc;
+                        InvokeDynamicInsnNode newNode = new InvokeDynamicInsnNode(
+                                insn.name,
+                                newDesc,
+                                new Handle(
+                                        Opcodes.H_INVOKESTATIC,
+                                        REDIRECTION_NAME,
+                                        "bsm",
+                                        "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;",
+                                        false));
+                        method.instructions.set(insn, newNode);
+                        node.version = Math.max(node.version, Opcodes.V1_7); // invokedynamic requires at least Java 7
+                        classNode.computeFrames();
                     }
                 }
             }
