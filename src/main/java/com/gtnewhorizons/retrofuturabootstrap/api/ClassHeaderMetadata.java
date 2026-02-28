@@ -35,6 +35,8 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     /** List is unmodifiable */
     public final @NotNull List<@NotNull String> binaryInterfaceNames;
 
+    private boolean hasInvokeDynamicEntry = false;
+
     /**
      * Attempts to parse a class header.
      * @param bytes The class bytes to parse.
@@ -61,6 +63,8 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
                     entry++;
                     constantPoolEntryOffsets[entry] = off;
                     constantPoolEntryTypes[entry] = type;
+                } else if (type == ConstantPoolEntryTypes.InvokeDynamic) {
+                    hasInvokeDynamicEntry = true;
                 }
                 off += type.byteLength(bytes, off);
             }
@@ -372,6 +376,10 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
      */
     public static boolean hasSubstring(final byte @Nullable [] classBytes, final byte @NotNull [] substring) {
         return hasSubstrings(classBytes, new byte[][] {substring});
+    }
+
+    public boolean hasInvokeDynamicEntry() {
+        return hasInvokeDynamicEntry;
     }
 
     @Override
