@@ -30,9 +30,9 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         excludedPackages = Stream.concat(Arrays.stream(fromPrefixes), Arrays.stream(toPrefixes))
                 .map(s -> s.replace('/', '.'))
                 .toArray(String[]::new);
-        quickScans = Arrays.stream(fromPrefixes)
+        scanIndex = new ClassHeaderMetadata.NeedleIndex(Arrays.stream(fromPrefixes)
                 .map(s -> s.getBytes(StandardCharsets.UTF_8))
-                .toArray(byte[][]::new);
+                .toArray(byte[][]::new));
     }
 
     @Pattern("[a-z0-9-]+")
@@ -51,7 +51,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         "com/gtnewhorizons/retrofuturabootstrap/asm/DummyCompiler",
         "com/gtnewhorizons/retrofuturabootstrap/SecurityManager"
     };
-    final byte[][] quickScans;
+    final ClassHeaderMetadata.NeedleIndex scanIndex;
     final String[] excludedPackages;
 
     @Override
@@ -64,26 +64,21 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         if (!classNode.isPresent()) {
             return false;
         }
-        final int classVersion;
-        if (classNode.getOriginalMetadata() != null) {
-            classVersion = classNode.getOriginalMetadata().majorVersion;
-        } else {
-            classVersion = 8;
-        }
 
-        if (classVersion >= Opcodes.V21) {
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
             return false;
         }
 
-        final byte[] original = classNode.getOriginalBytes();
-        if (original == null) {
+        if (metadata.majorVersion >= Opcodes.V21) {
             return false;
         }
-        return ClassHeaderMetadata.hasSubstrings(original, quickScans);
+
+        return metadata.hasSubstrings(scanIndex);
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
@@ -91,7 +86,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
             @NotNull ClassNodeHandle classNode) {
         final ClassNode inputNode = classNode.getNode();
         if (inputNode == null) {
-            return;
+            return false;
         }
 
         final ClassNode outputNode = new ClassNode();
@@ -101,7 +96,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
             inputNode.accept(visitor);
         } catch (Exception e) {
             SharedConfig.logWarning("Couldn't remap class " + className, e);
-            return;
+            return false;
         }
 
         // Remap SecurityManager getter/setter
@@ -126,6 +121,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         }
 
         classNode.setNode(outputNode);
+        return true;
     }
 
     @Override

@@ -71,17 +71,39 @@ public interface RfbClassTransformer {
             @NotNull ClassNodeHandle classNode);
 
     /**
-     * (Optionally) transform a given class. No ClassReader flags are used for maximum efficiency, so stack frames are not expanded.
+     * Optionally transform a given class. No ClassReader flags are used for maximum efficiency, so stack frames are not expanded.
      * @param classLoader The class loader asking for the transformation.
      * @param context The context in which the class is being loaded.
      * @param manifest Manifest of the JAR from which the package of this class came, or null if not present.
      * @param className The name of the transformed class (in the dot-separated format).
      * @param classNode The handle to the lazily ASM-parsed class to modify, and metadata used for class writing.
+     * @return true if the class was transformed.
      */
-    void transformClass(
+    default boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
-            @NotNull ClassNodeHandle classNode);
+            @NotNull ClassNodeHandle classNode) {
+        transformClass(classLoader, context, manifest, className, classNode);
+        return true;
+    }
+
+    /**
+     * @deprecated Use {@link #transformClassIfNeeded} instead.
+     * For compatibility with lwjgl3ify 3.0.14 and lower you still need to implement this method, as simple as
+     * <pre>{@code
+     * @Override
+     * void transformClass(...) { transformClassIfNeeded(...); }
+     * }</pre>
+     */
+    @Deprecated
+    default void transformClass(
+            @NotNull ExtensibleClassLoader classLoader,
+            @NotNull Context context,
+            @Nullable Manifest manifest,
+            @NotNull String className,
+            @NotNull ClassNodeHandle classNode) {
+        throw new UnsupportedOperationException("You should override transformClassIfNeeded");
+    }
 }

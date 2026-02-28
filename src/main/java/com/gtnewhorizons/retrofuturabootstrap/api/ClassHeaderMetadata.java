@@ -16,6 +16,7 @@ import org.objectweb.asm.Opcodes;
  */
 public final class ClassHeaderMetadata implements FastClassAccessor {
 
+    public final byte[] classBytes;
     public final int minorVersion;
     public final int majorVersion;
     public final int constantPoolEntryCount;
@@ -45,13 +46,13 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         if (!isValidClass(bytes)) {
             throw new IllegalArgumentException("Invalid class detected");
         }
+        this.classBytes = bytes;
         this.minorVersion = u16(bytes, Offsets.minorVersionU16);
         this.majorVersion = u16(bytes, Offsets.majorVersionU16);
         this.constantPoolEntryCount = u16(bytes, Offsets.constantPoolCountU16);
         this.constantPoolEntryOffsets = new int[constantPoolEntryCount];
         this.constantPoolEntryTypes = new ConstantPoolEntryTypes[constantPoolEntryCount];
         // scan through CP entries
-        final int cpOff;
         {
             int off = Offsets.constantPoolStart;
             for (int entry = 0; entry < constantPoolEntryCount - 1; entry++) {
@@ -68,15 +69,12 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
                 }
                 off += type.byteLength(bytes, off);
             }
-            cpOff = off;
-            this.constantPoolEndOffset = cpOff;
+            this.constantPoolEndOffset = off;
         }
-        this.accessFlags = u16(bytes, cpOff + Offsets.pastCpAccessFlagsU16);
-        this.thisClassIndex = u16(bytes, cpOff + Offsets.pastCpThisClassU16);
-        this.superClassIndex = u16(bytes, cpOff + Offsets.pastCpSuperClassU16);
-        this.interfacesCount = u16(bytes, cpOff + Offsets.pastCpInterfacesCountU16);
-        this.interfaceIndices = new int[this.interfacesCount];
-        List<String> interfaceNames = new ArrayList<>(this.interfacesCount);
+        this.accessFlags = u16(bytes, this.constantPoolEndOffset + Offsets.pastCpAccessFlagsU16);
+        this.thisClassIndex = u16(bytes, this.constantPoolEndOffset + Offsets.pastCpThisClassU16);
+        this.superClassIndex = u16(bytes, this.constantPoolEndOffset + Offsets.pastCpSuperClassU16);
+        this.interfacesCount = u16(bytes, this.constantPoolEndOffset + Offsets.pastCpInterfacesCountU16);
 
         // Parse this&super names
         if (constantPoolEntryTypes[thisClassIndex - 1] != ConstantPoolEntryTypes.Class) {
@@ -102,8 +100,10 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         }
 
         // Parse interface names
+        List<String> interfaceNames = new ArrayList<>(this.interfacesCount);
+        this.interfaceIndices = new int[this.interfacesCount];
         for (int i = 0; i < this.interfacesCount; i++) {
-            final int interfaceOffset = cpOff + Offsets.pastCpInterfacesList + i * 2;
+            final int interfaceOffset = this.constantPoolEndOffset + Offsets.pastCpInterfacesList + i * 2;
             final int interfaceIndex = u16(bytes, interfaceOffset);
             if (constantPoolEntryTypes[interfaceIndex - 1] != ConstantPoolEntryTypes.Class) {
                 throw new IllegalArgumentException("Interface " + i + " index is not a class ref");
@@ -308,74 +308,150 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         return u16(classBytes, Offsets.majorVersionU16);
     }
 
-    /**
-     * Searches for a sub"string" (byte array) in a longer byte array.
-     * @param classBytes The long byte string to search in.
-     * @param substrings The list of substrings to search for.
-     * @return If the substring was found somewhere in the long string.
-     */
-    public static boolean hasSubstrings(final byte @Nullable [] classBytes, final byte @NotNull [][] substrings) {
-        if (classBytes == null || classBytes.length < Offsets.constantPoolStart) {
-            return false;
+    public static final class NeedleIndex {
+        private static final int[] EMPTY_BUCKET = new int[0];
+
+        final byte[][] needles;
+        final int[][][] byFirstSecond; // [first][second] -> indices into needles[]
+        int minNeedleLen = Integer.MAX_VALUE;
+        boolean exactMatch;
+
+        public NeedleIndex(byte[] needle) {
+            this(new byte[][] {needle});
         }
 
-        // Loop through each entry in the constant pool, getting the size and content before jumping to the next.
-        // Strings get scanned for the searched constants, and if found result in an early exit.
-        final int constantsCount = u16(classBytes, Offsets.constantPoolCountU16);
-        int offset = Offsets.constantPoolStart;
-        for (int i = 1; i < constantsCount; ++i) {
-            ConstantPoolEntryTypes type = ConstantPoolEntryTypes.parse(classBytes, offset);
-            int size;
+        public NeedleIndex(byte[][] needles) {
+            this.needles = needles;
 
-            switch (type) {
-                case Utf8: {
-                    final int strLen = u16(classBytes, offset + 1);
-                    final int start = offset + 3;
-                    size = strLen + 3;
+            @SuppressWarnings("unchecked")
+            List<Integer>[][] tmp = new List[256][256];
 
-                    for (byte[] bytes : substrings) {
-                        if (strLen < bytes.length) {
-                            continue;
-                        }
+            for (int i = 0; i < needles.length; i++) {
+                byte[] n = needles[i];
+                int len = n.length;
 
-                        byte first = bytes[0];
-                        int end = start + strLen - bytes.length;
-                        for (int j = start; j <= end; j++) {
-                            if (classBytes[j] != first) continue;
-                            int k = 1;
-                            while (k < bytes.length && classBytes[j + k] == bytes[k]) k++;
-                            if (k == bytes.length) return true;
-                        }
+                if (len < this.minNeedleLen) this.minNeedleLen = len;
+
+                int first = n[0] & 0xFF;
+                int second = n[1] & 0xFF;
+
+                List<Integer> list = tmp[first][second];
+                if (list == null) {
+                    list = new ArrayList<>();
+                    tmp[first][second] = list;
+                }
+                list.add(i);
+            }
+
+            this.byFirstSecond = new int[256][][];
+
+            for (int first = 0; first < 256; first++) {
+                List<Integer>[] row = tmp[first];
+                int[][] buckets = new int[256][];
+                boolean hasAny = false;
+
+                for (int second = 0; second < 256; second++) {
+                    List<Integer> list = row[second];
+                    int size = list == null ? 0 : list.size();
+
+                    if (size == 0) {
+                        buckets[second] = EMPTY_BUCKET;
+                        continue;
                     }
-                    break;
+
+                    int[] arr = new int[size];
+                    for (int j = 0; j < size; j++) {
+                        arr[j] = list.get(j);
+                    }
+                    buckets[second] = arr;
+                    hasAny = true;
                 }
-                case Long:
-                case Double: {
-                    // Longs and Doubles take up 2 constant pool indices
-                    ++i;
-                    size = type.maybeByteLength + 1;
-                    break;
+
+                if (hasAny) {
+                    this.byFirstSecond[first] = buckets;
                 }
-                default: {
-                    size = type.maybeByteLength + 1;
-                    break;
+            }
+        }
+
+        public NeedleIndex exactMatch() {
+            this.exactMatch = true;
+            return this;
+        }
+
+        public boolean matchesAny(byte[] hay, int start, int len) {
+            if (len < minNeedleLen) {
+                return false;
+            }
+
+            if (exactMatch) {
+                return matchesAnyExact(hay, start, len);
+            }
+
+            final int end = start + len;
+            final int lastStart = end - minNeedleLen;
+
+            for (int pos = start; pos <= lastStart; pos++) {
+                int[][] row = byFirstSecond[hay[pos] & 0xFF];
+                if (row == null) {
+                    continue;
+                }
+
+                int[] bucket = row[hay[pos + 1] & 0xFF];
+                final int remaining = end - pos;
+
+                for (int idx : bucket) {
+                    byte[] n = needles[idx];
+                    int nLen = n.length;
+                    if (nLen > remaining) continue;
+
+                    int k = 2;
+                    while (k < nLen && hay[pos + k] == n[k]) k++;
+                    if (k == nLen) return true;
                 }
             }
 
-            offset += size;
+            return false;
         }
 
-        return false;
+        // exact-match needles: the whole UTF8 entry must match
+        public boolean matchesAnyExact(byte[] hay, int start, int len) {
+            for (byte[] n : needles) {
+                int nLen = n.length;
+                if (nLen != len) {
+                    continue;
+                }
+
+                int k = 0;
+                while (k < nLen && hay[start + k] == n[k]) k++;
+                if (k == nLen) return true;
+            }
+
+            return false;
+        }
     }
 
     /**
-     * Searches for a sub"string" (byte array) in a longer byte array.
-     * @param classBytes The long byte string to search in.
-     * @param substring The substring to search for.
-     * @return If the substring was found somewhere in the long string.
+     * Searches for a sub"string" (byte array) in a class bytes' constant pool.
+     * @param needleIndex The list of substrings to search for.
+     * @return If the substring was found somewhere in the class.
      */
-    public static boolean hasSubstring(final byte @Nullable [] classBytes, final byte @NotNull [] substring) {
-        return hasSubstrings(classBytes, new byte[][] {substring});
+    public boolean hasSubstrings(final NeedleIndex needleIndex) {
+        for (int i = 0; i < constantPoolEntryCount - 1; i++) {
+            final ConstantPoolEntryTypes type = constantPoolEntryTypes[i];
+            if (type != ConstantPoolEntryTypes.Utf8) {
+                continue;
+            }
+
+            final int offset = constantPoolEntryOffsets[i];
+            final int start = offset + 3;
+            final int length = u16(classBytes, offset + 1);
+
+            if (needleIndex.matchesAny(classBytes, start, length)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public boolean hasInvokeDynamicEntry() {

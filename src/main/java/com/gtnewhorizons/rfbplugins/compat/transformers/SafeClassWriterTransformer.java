@@ -33,8 +33,9 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
     }
 
     final String CLASS_WRITER_NAME = ClassWriter.class.getName().replace('.', '/');
-    final byte[] CLASS_WRITER_BYTES = CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8);
     final String SAFE_WRITER_NAME = SafeAsmClassWriter.class.getName().replace('.', '/');
+    final ClassHeaderMetadata.NeedleIndex scanIndex =
+            new ClassHeaderMetadata.NeedleIndex(CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8)).exactMatch();
 
     @Override
     public boolean shouldTransformClass(
@@ -50,26 +51,31 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), CLASS_WRITER_BYTES);
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
+            return false;
+        }
+        return metadata.hasSubstrings(scanIndex);
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
+        boolean transformed = false;
         if (node == null) {
-            return;
+            return false;
         }
+
         if (node.superName.equals(CLASS_WRITER_NAME)) {
             node.superName = SAFE_WRITER_NAME;
+            transformed = true;
         }
-        if (node.methods == null) {
-            return;
-        }
+
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
                 continue;
@@ -79,14 +85,18 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
                     final TypeInsnNode insn = (TypeInsnNode) rawInsn;
                     if (insn.desc.equals(CLASS_WRITER_NAME)) {
                         insn.desc = SAFE_WRITER_NAME;
+                        transformed = true;
                     }
                 } else if (rawInsn.getType() == AbstractInsnNode.METHOD_INSN) {
                     final MethodInsnNode insn = (MethodInsnNode) rawInsn;
                     if (insn.owner.equals(CLASS_WRITER_NAME) && insn.name.equals("<init>")) {
                         insn.owner = SAFE_WRITER_NAME;
+                        transformed = true;
                     }
                 }
             }
         }
+
+        return transformed;
     }
 }

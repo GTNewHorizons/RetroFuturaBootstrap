@@ -33,8 +33,10 @@ public class UuidTransformer implements RfbClassTransformer {
     }
 
     final String UUID_NAME = Type.getInternalName(UUID.class);
-    final byte[] UUID_NAME_BYTES = UUID_NAME.getBytes(StandardCharsets.UTF_8);
     final String REDIRECTION_NAME = Type.getInternalName(UuidStringConstructor.class);
+    final ClassHeaderMetadata.NeedleIndex scanIndex = new ClassHeaderMetadata.NeedleIndex(
+                    "(Ljava/lang/String;)Ljava/util/UUID;".getBytes(StandardCharsets.UTF_8))
+            .exactMatch();
 
     @Override
     public boolean shouldTransformClass(
@@ -49,24 +51,32 @@ public class UuidTransformer implements RfbClassTransformer {
         if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
             return false;
         }
-        if (classNode.getOriginalMetadata() != null && classNode.getOriginalMetadata().majorVersion >= Opcodes.V9) {
+
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
             return false;
         }
 
-        return ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), UUID_NAME_BYTES);
+        if (metadata.majorVersion >= Opcodes.V9) {
+            return false;
+        }
+
+        return metadata.hasSubstrings(scanIndex);
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
-        if (node == null || node.methods == null) {
-            return;
+        boolean transformed = false;
+        if (node == null) {
+            return false;
         }
+
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
                 continue;
@@ -78,9 +88,12 @@ public class UuidTransformer implements RfbClassTransformer {
                             && insn.name.equals("fromString")
                             && insn.desc.equals("(Ljava/lang/String;)Ljava/util/UUID;")) {
                         insn.owner = REDIRECTION_NAME;
+                        transformed = true;
                     }
                 }
             }
         }
+
+        return transformed;
     }
 }

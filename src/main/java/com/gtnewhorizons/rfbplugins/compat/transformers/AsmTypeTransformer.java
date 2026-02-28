@@ -23,7 +23,9 @@ public class AsmTypeTransformer implements RfbClassTransformer {
     /** Attribute to set to "true" on a JAR to skip class transforms from this transformer entirely */
     public static final Attributes.Name MANIFEST_SAFE_ATTRIBUTE = new Attributes.Name("Has-Safe-AsmGetTypeUsage");
 
-    private static final byte[] quickScan = "org/objectweb/asm/Type".getBytes(StandardCharsets.UTF_8);
+    private static final ClassHeaderMetadata.NeedleIndex scanIndex = new ClassHeaderMetadata.NeedleIndex(
+                    "(Ljava/lang/String;)Lorg/objectweb/asm/Type;".getBytes(StandardCharsets.UTF_8))
+            .exactMatch();
 
     @Pattern("[a-z0-9-]+")
     @Override
@@ -44,28 +46,31 @@ public class AsmTypeTransformer implements RfbClassTransformer {
         if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
             return false;
         }
-        // Assume classes for java 9+ were tested against a newer asm.
-        if (classNode.getOriginalMetadata() != null && classNode.getOriginalMetadata().majorVersion >= Opcodes.V9) {
+
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
             return false;
         }
 
-        final byte[] original = classNode.getOriginalBytes();
-        return ClassHeaderMetadata.hasSubstring(original, quickScan);
+        // Assume classes for java 9+ were tested against a newer asm.
+        if (metadata.majorVersion >= Opcodes.V9) {
+            return false;
+        }
+
+        return metadata.hasSubstrings(scanIndex);
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
+        boolean transformed = false;
         if (node == null) {
-            return;
-        }
-        if (node.methods == null) {
-            return;
+            return false;
         }
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
@@ -78,9 +83,11 @@ public class AsmTypeTransformer implements RfbClassTransformer {
                             && ("getType".equals(mi.name) || "getReturnType".equals(mi.name))
                             && "(Ljava/lang/String;)Lorg/objectweb/asm/Type;".equals(mi.desc)) {
                         mi.owner = "com/gtnewhorizons/retrofuturabootstrap/asm/SafeAsmType";
+                        transformed = true;
                     }
                 }
             }
         }
+        return transformed;
     }
 }

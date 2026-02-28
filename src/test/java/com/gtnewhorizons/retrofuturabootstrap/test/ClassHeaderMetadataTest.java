@@ -17,13 +17,16 @@ public class ClassHeaderMetadataTest {
     @Test
     void hasSubstring() throws IOException {
         byte[] classBytes = stubClassBytes("org/lwjgl/opengl/GL11");
+        ClassHeaderMetadata metadata = new ClassHeaderMetadata(classBytes);
 
-        Assertions.assertFalse(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/whatever")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("lwjgl")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/lwjgl/")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/lwjgl/opengl/GL11")));
-        Assertions.assertFalse(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/lwjgl/opengl/GL11/meh")));
+        Assertions.assertFalse(metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("org/whatever"))));
+        Assertions.assertTrue(metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("org"))));
+        Assertions.assertTrue(metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("lwjgl"))));
+        Assertions.assertTrue(metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("org/lwjgl/"))));
+        Assertions.assertTrue(
+                metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("org/lwjgl/opengl/GL11"))));
+        Assertions.assertFalse(
+                metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("org/lwjgl/opengl/GL11/meh"))));
     }
 
     private static byte[] stubClassBytes(String stubPoolConstant) throws IOException {
