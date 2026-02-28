@@ -68,7 +68,7 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
     }
 
     @Override
-    public boolean transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull Context context,
             @Nullable Manifest manifest,
