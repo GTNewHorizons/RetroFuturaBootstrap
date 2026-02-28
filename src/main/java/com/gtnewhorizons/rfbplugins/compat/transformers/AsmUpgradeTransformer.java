@@ -70,7 +70,7 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
     }
 
     @Override
-    public boolean transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
