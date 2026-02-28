@@ -309,30 +309,73 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     }
 
     /**
-     * Searches for a sub"string" (byte array) in a longer byte array. Not efficient for long search strings.
+     * Searches for a sub"string" (byte array) in a longer byte array.
      * @param classBytes The long byte string to search in.
-     * @param substring The short substring to search for.
+     * @param substrings The list of substrings to search for.
+     * @return If the substring was found somewhere in the long string.
+     */
+    public static boolean hasSubstrings(final byte @Nullable [] classBytes, final byte @NotNull [][] substrings) {
+        if (classBytes == null || classBytes.length < Offsets.constantPoolStart) {
+            return false;
+        }
+
+        // Loop through each entry in the constant pool, getting the size and content before jumping to the next.
+        // Strings get scanned for the searched constants, and if found result in an early exit.
+        final int constantsCount = u16(classBytes, Offsets.constantPoolCountU16);
+        int offset = Offsets.constantPoolStart;
+        for (int i = 1; i < constantsCount; ++i) {
+            ConstantPoolEntryTypes type = ConstantPoolEntryTypes.parse(classBytes, offset);
+            int size;
+
+            switch (type) {
+                case Utf8: {
+                    final int strLen = u16(classBytes, offset + 1);
+                    final int start = offset + 3;
+                    size = strLen + 3;
+
+                    for (byte[] bytes : substrings) {
+                        if (strLen < bytes.length) {
+                            continue;
+                        }
+
+                        byte first = bytes[0];
+                        int end = start + strLen - bytes.length;
+                        for (int j = start; j <= end; j++) {
+                            if (classBytes[j] != first) continue;
+                            int k = 1;
+                            while (k < bytes.length && classBytes[j + k] == bytes[k]) k++;
+                            if (k == bytes.length) return true;
+                        }
+                    }
+                    break;
+                }
+                case Long:
+                case Double: {
+                    // Longs and Doubles take up 2 constant pool indices
+                    ++i;
+                    size = type.maybeByteLength + 1;
+                    break;
+                }
+                default: {
+                    size = type.maybeByteLength + 1;
+                    break;
+                }
+            }
+
+            offset += size;
+        }
+
+        return false;
+    }
+
+    /**
+     * Searches for a sub"string" (byte array) in a longer byte array.
+     * @param classBytes The long byte string to search in.
+     * @param substring The substring to search for.
      * @return If the substring was found somewhere in the long string.
      */
     public static boolean hasSubstring(final byte @Nullable [] classBytes, final byte @NotNull [] substring) {
-        if (classBytes == null) {
-            return false;
-        }
-        final int classLen = classBytes.length;
-        final int subLen = substring.length;
-        if (classLen < subLen) {
-            return false;
-        }
-        outer:
-        for (int startPos = 0; startPos + subLen - 1 < classLen; startPos++) {
-            for (int i = 0; i < subLen; i++) {
-                if (classBytes[startPos + i] != substring[i]) {
-                    continue outer;
-                }
-            }
-            return true;
-        }
-        return false;
+        return hasSubstrings(classBytes, new byte[][] {substring});
     }
 
     public boolean hasInvokeDynamicEntry() {
