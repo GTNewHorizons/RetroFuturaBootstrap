@@ -309,10 +309,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     }
 
     public static final class NeedleIndex {
-        private static final byte[][] EMPTY_BUCKET = new byte[0][0];
-
-        final byte[][] needles;
-        // firstByte -> matched needles
+        // first byte -> matched needles
         final byte[][][] byFirst = new byte[256][][];
         int minNeedleLen = Integer.MAX_VALUE;
         boolean exactMatch = false;
@@ -322,35 +319,26 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         }
 
         public NeedleIndex(byte[][] needles) {
-            this.needles = needles;
-
             @SuppressWarnings("unchecked")
-            ArrayList<byte[]>[] needlesByFirstByte = new ArrayList[256];
+            final ArrayList<byte[]>[] needlesByFirstByte = new ArrayList[256];
 
             for (final byte[] needle : needles) {
-                final int len = needle.length;
+                if (needle.length < this.minNeedleLen) this.minNeedleLen = needle.length;
 
-                if (len < this.minNeedleLen) this.minNeedleLen = len;
-
-                final int first = needle[0] & 0xFF;
-                ArrayList<byte[]> list = needlesByFirstByte[first];
-                if (list == null) {
-                    list = new ArrayList<>();
-                    needlesByFirstByte[first] = list;
+                final int firstByte = needle[0] & 0xFF;
+                ArrayList<byte[]> needlesBucket = needlesByFirstByte[firstByte];
+                if (needlesBucket == null) {
+                    needlesBucket = new ArrayList<>();
+                    needlesByFirstByte[firstByte] = needlesBucket;
                 }
-                list.add(needle);
+                needlesBucket.add(needle);
             }
 
-            for (int first = 0; first < 256; first++) {
-                final ArrayList<byte[]> list = needlesByFirstByte[first];
-                final int size = list == null ? 0 : list.size();
-
-                if (size == 0) {
-                    this.byFirst[first] = EMPTY_BUCKET;
-                    continue;
+            for (int firstByte = 0; firstByte < 256; firstByte++) {
+                final ArrayList<byte[]> needlesBucket = needlesByFirstByte[firstByte];
+                if (needlesBucket != null) {
+                    this.byFirst[firstByte] = needlesBucket.toArray(new byte[needlesBucket.size()][]);
                 }
-
-                this.byFirst[first] = list.toArray(new byte[size][]);
             }
         }
 
@@ -369,47 +357,43 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
             }
 
             final int end = start + len;
-            final int lastStart = end - minNeedleLen;
 
-            for (int pos = start; pos <= lastStart; pos++) {
-                final byte[][] bucket = byFirst[hay[pos] & 0xFF];
-                if (bucket == EMPTY_BUCKET) {
+            for (int pos = start; pos <= end - minNeedleLen; pos++) {
+                final byte[][] needles = byFirst[hay[pos] & 0xFF];
+                if (needles == null) {
                     continue;
                 }
 
-                final int remaining = end - pos;
-
-                for (final byte[] needle : bucket) {
+                for (final byte[] needle : needles) {
                     final int needleLen = needle.length;
-                    if (needleLen > remaining) {
+                    if (needleLen > end - pos) {
                         continue;
                     }
 
-                    int k = 1;
-                    while (k < needleLen && hay[pos + k] == needle[k]) k++;
-                    if (k == needleLen) return true;
+                    int k = needleLen - 1;
+                    while (k > 0 && hay[pos + k] == needle[k]) k--;
+                    if (k == 0) return true;
                 }
             }
 
             return false;
         }
 
-        // exact-match needles: the whole UTF8 entry must match
-        public boolean matchesAnyExact(byte[] hay, int start, int len) {
-            final byte[][] bucket = byFirst[hay[start] & 0xFF];
-            if (bucket == EMPTY_BUCKET) {
+        private boolean matchesAnyExact(byte[] hay, int start, int len) {
+            final byte[][] needles = byFirst[hay[start] & 0xFF];
+            if (needles == null) {
                 return false;
             }
 
-            for (final byte[] needle : bucket) {
+            for (final byte[] needle : needles) {
                 final int needleLen = needle.length;
                 if (needleLen != len) {
                     continue;
                 }
 
-                int k = 1;
-                while (k < needleLen && hay[start + k] == needle[k]) k++;
-                if (k == needleLen) return true;
+                int k = needleLen - 1;
+                while (k > 0 && hay[start + k] == needle[k]) k--;
+                if (k == 0) return true;
             }
 
             return false;
