@@ -309,10 +309,11 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     }
 
     public static final class NeedleIndex {
-        private static final int[] EMPTY_BUCKET = new int[0];
+        private static final byte[][] EMPTY_BUCKET = new byte[0][0];
 
         final byte[][] needles;
-        final int[][] byFirst = new int[256][];
+        // firstByte -> matched needles
+        final byte[][][] byFirst = new byte[256][][];
         int minNeedleLen = Integer.MAX_VALUE;
         boolean exactMatch = false;
 
@@ -324,25 +325,24 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
             this.needles = needles;
 
             @SuppressWarnings("unchecked")
-            ArrayList<Integer>[] needleIndicesByFirstByte = new ArrayList[256];
+            ArrayList<byte[]>[] needlesByFirstByte = new ArrayList[256];
 
-            for (int i = 0; i < needles.length; i++) {
-                final byte[] needle = needles[i];
+            for (final byte[] needle : needles) {
                 final int len = needle.length;
 
                 if (len < this.minNeedleLen) this.minNeedleLen = len;
 
                 final int first = needle[0] & 0xFF;
-                ArrayList<Integer> list = needleIndicesByFirstByte[first];
+                ArrayList<byte[]> list = needlesByFirstByte[first];
                 if (list == null) {
                     list = new ArrayList<>();
-                    needleIndicesByFirstByte[first] = list;
+                    needlesByFirstByte[first] = list;
                 }
-                list.add(i);
+                list.add(needle);
             }
 
             for (int first = 0; first < 256; first++) {
-                final List<Integer> list = needleIndicesByFirstByte[first];
+                final ArrayList<byte[]> list = needlesByFirstByte[first];
                 final int size = list == null ? 0 : list.size();
 
                 if (size == 0) {
@@ -350,11 +350,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
                     continue;
                 }
 
-                final int[] arr = new int[size];
-                for (int j = 0; j < size; j++) {
-                    arr[j] = list.get(j);
-                }
-                this.byFirst[first] = arr;
+                this.byFirst[first] = list.toArray(new byte[size][]);
             }
         }
 
@@ -376,15 +372,14 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
             final int lastStart = end - minNeedleLen;
 
             for (int pos = start; pos <= lastStart; pos++) {
-                final int[] bucket = byFirst[hay[pos] & 0xFF];
+                final byte[][] bucket = byFirst[hay[pos] & 0xFF];
                 if (bucket == EMPTY_BUCKET) {
                     continue;
                 }
 
                 final int remaining = end - pos;
 
-                for (final int idx : bucket) {
-                    final byte[] needle = needles[idx];
+                for (final byte[] needle : bucket) {
                     final int needleLen = needle.length;
                     if (needleLen > remaining) {
                         continue;
@@ -401,13 +396,18 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
 
         // exact-match needles: the whole UTF8 entry must match
         public boolean matchesAnyExact(byte[] hay, int start, int len) {
-            for (final byte[] needle : needles) {
+            final byte[][] bucket = byFirst[hay[start] & 0xFF];
+            if (bucket == EMPTY_BUCKET) {
+                return false;
+            }
+
+            for (final byte[] needle : bucket) {
                 final int needleLen = needle.length;
                 if (needleLen != len) {
                     continue;
                 }
 
-                int k = 0;
+                int k = 1;
                 while (k < needleLen && hay[start + k] == needle[k]) k++;
                 if (k == needleLen) return true;
             }
