@@ -9,8 +9,11 @@ public class BytePatternMatcher {
     int minPatternLen = Integer.MAX_VALUE;
 
     public enum Mode {
+        /** Checks if the whole constant pool entry equals a pattern */
         Equals,
+        /** Checks if the constant pool entry starts with a pattern */
         StartsWith,
+        /** Checks if the constant pool entry contains a pattern */
         Contains
     }
 
@@ -59,8 +62,9 @@ public class BytePatternMatcher {
 
         if (mode == Mode.Equals) {
             return matchesEquals(bytes, start, len);
+        } else if (mode == Mode.StartsWith) {
+            return matchesStartsWith(bytes, start, len);
         }
-        // coming soon: mode == StartsWith (useful for LwjglRedirectTransformer)
 
         final int end = start + len;
 
@@ -92,6 +96,25 @@ public class BytePatternMatcher {
 
         for (final byte[] pattern : patterns) {
             if (pattern.length != len) {
+                continue;
+            }
+
+            int k = pattern.length - 1;
+            while (k > 0 && bytes[start + k] == pattern[k]) k--;
+            if (k == 0) return true;
+        }
+
+        return false;
+    }
+
+    private boolean matchesStartsWith(byte[] bytes, int start, int len) {
+        final byte[][] patterns = byFirst[bytes[start] & 0xFF];
+        if (patterns == null) {
+            return false;
+        }
+
+        for (final byte[] pattern : patterns) {
+            if (pattern.length > len) {
                 continue;
             }
 
