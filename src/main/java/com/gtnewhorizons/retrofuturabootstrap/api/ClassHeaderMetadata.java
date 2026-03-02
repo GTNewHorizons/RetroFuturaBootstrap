@@ -414,7 +414,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
 
     @Override
     public boolean isEnum() {
-        return (accessFlags & Opcodes.ACC_ENUM) != 0;
+        return "java/lang/Enum".equals(binarySuperName);
     }
 
     @Override
