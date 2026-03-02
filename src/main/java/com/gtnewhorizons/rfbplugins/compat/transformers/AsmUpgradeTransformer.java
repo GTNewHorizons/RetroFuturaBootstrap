@@ -7,8 +7,6 @@ import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UpgradedTreeNodes;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UpgradedVisitors;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.jar.Manifest;
@@ -39,11 +37,8 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
             upgradeMap.put(Type.getInternalName(visitor.getSuperclass()), Type.getInternalName(visitor));
         }
 
-        patternMatcher = new BytePatternMatcher(
-                Arrays.stream(upgradeMap.keySet().toArray(new String[0]))
-                        .map(s -> s.getBytes(StandardCharsets.UTF_8))
-                        .toArray(byte[][]::new),
-                BytePatternMatcher.Mode.Equals);
+        patternMatcher =
+                new BytePatternMatcher(upgradeMap.keySet().toArray(new String[0]), BytePatternMatcher.Mode.Equals);
     }
 
     @Pattern("[a-z0-9-]+")

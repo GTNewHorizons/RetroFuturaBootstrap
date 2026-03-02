@@ -7,7 +7,6 @@ import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UnsafeReflectionRedirector;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
@@ -55,11 +54,7 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
             "get(Ljava/lang/Object;)Ljava/lang/Object"));
 
     final BytePatternMatcher patternMatcher = new BytePatternMatcher(
-            new byte[][] {
-                CLASS_GET_DECLARED_FIELD_STRING_DESC.getBytes(StandardCharsets.UTF_8),
-                CLASS_GET_DECLARED_FIELD_EMPTY_DESC.getBytes(StandardCharsets.UTF_8),
-                FIELD_NAME.getBytes(StandardCharsets.UTF_8)
-            },
+            new String[] {CLASS_GET_DECLARED_FIELD_STRING_DESC, CLASS_GET_DECLARED_FIELD_EMPTY_DESC, FIELD_NAME},
             BytePatternMatcher.Mode.Equals);
 
     @Override

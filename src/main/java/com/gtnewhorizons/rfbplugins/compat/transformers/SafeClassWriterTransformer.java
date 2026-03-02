@@ -6,7 +6,6 @@ import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.SafeAsmClassWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import org.intellij.lang.annotations.Pattern;
@@ -35,8 +34,7 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
 
     final String CLASS_WRITER_NAME = ClassWriter.class.getName().replace('.', '/');
     final String SAFE_WRITER_NAME = SafeAsmClassWriter.class.getName().replace('.', '/');
-    final BytePatternMatcher patternMatcher =
-            new BytePatternMatcher(CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8), BytePatternMatcher.Mode.Equals);
+    final BytePatternMatcher patternMatcher = new BytePatternMatcher(CLASS_WRITER_NAME, BytePatternMatcher.Mode.Equals);
 
     @Override
     public boolean shouldTransformClass(

@@ -6,7 +6,6 @@ import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.jar.Manifest;
 import java.util.stream.Stream;
@@ -27,16 +26,16 @@ import org.objectweb.asm.tree.MethodNode;
  */
 public class DeprecatedRedirectTransformer extends Remapper implements RfbClassTransformer {
 
-    public DeprecatedRedirectTransformer() {
-        excludedPackages = Stream.concat(Arrays.stream(fromPrefixes), Arrays.stream(toPrefixes))
-                .map(s -> s.replace('/', '.'))
-                .toArray(String[]::new);
-        patternMatcher = new BytePatternMatcher(
-                Arrays.stream(fromPrefixes)
-                        .map(s -> s.getBytes(StandardCharsets.UTF_8))
-                        .toArray(byte[][]::new),
-                BytePatternMatcher.Mode.Contains);
-    }
+    final String[] fromPrefixes = new String[] {"java/lang/Compiler", "java/lang/SecurityManager"};
+    final String[] toPrefixes = new String[] {
+        "com/gtnewhorizons/retrofuturabootstrap/asm/DummyCompiler",
+        "com/gtnewhorizons/retrofuturabootstrap/SecurityManager"
+    };
+
+    final BytePatternMatcher patternMatcher = new BytePatternMatcher(fromPrefixes, BytePatternMatcher.Mode.Contains);
+    final String[] excludedPackages = Stream.concat(Arrays.stream(fromPrefixes), Arrays.stream(toPrefixes))
+            .map(s -> s.replace('/', '.'))
+            .toArray(String[]::new);
 
     @Pattern("[a-z0-9-]+")
     @Override
@@ -48,14 +47,6 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
     public @NotNull String @Nullable [] additionalExclusions() {
         return excludedPackages;
     }
-
-    final String[] fromPrefixes = new String[] {"java/lang/Compiler", "java/lang/SecurityManager"};
-    final String[] toPrefixes = new String[] {
-        "com/gtnewhorizons/retrofuturabootstrap/asm/DummyCompiler",
-        "com/gtnewhorizons/retrofuturabootstrap/SecurityManager"
-    };
-    final BytePatternMatcher patternMatcher;
-    final String[] excludedPackages;
 
     @Override
     public boolean shouldTransformClass(
