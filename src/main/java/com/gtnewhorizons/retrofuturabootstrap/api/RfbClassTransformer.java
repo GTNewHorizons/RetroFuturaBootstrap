@@ -72,6 +72,9 @@ public interface RfbClassTransformer {
 
     /**
      * Optionally transform a given class. No ClassReader flags are used for maximum efficiency, so stack frames are not expanded.
+     * <p>
+     * Note: This method was added in lwjgl3ify 3.0.15. If you want to support older versions you need to implement
+     * transformClass too.
      * @param classLoader The class loader asking for the transformation.
      * @param context The context in which the class is being loaded.
      * @param manifest Manifest of the JAR from which the package of this class came, or null if not present.

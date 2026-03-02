@@ -320,14 +320,17 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
 
     /**
      * Searches for byte patterns in the constant pool.
+     * <p>
+     * Note: This method was added in lwjgl3ify 3.0.15. If you want to support older versions, consider using
+     * ClassConstantPoolParser from GTNHLib instead.
      * @param matcher A configured byte matcher with patterns to search for.
      * @return {@code true} if there is a match for at least one constant pool entry.
      */
     public boolean matchesBytes(final BytePatternMatcher matcher) {
-        for (int i = 0; i < constantPoolUtf8EntryOffsets.length; i++) {
-            final int offset = constantPoolUtf8EntryOffsets[i];
-            final int start = offset + 3;
+        for (final int offset : constantPoolUtf8EntryOffsets) {
+            // first byte is entry type, second and third bytes are length
             final int length = u16(classBytes, offset + 1);
+            final int start = offset + 3;
 
             if (matcher.matches(classBytes, start, length)) {
                 return true;
@@ -339,6 +342,28 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
 
     public boolean hasInvokeDynamicEntry() {
         return hasInvokeDynamicEntry;
+    }
+
+    /** @deprecated Use much more performant {@link #matchesBytes} instead */
+    public static boolean hasSubstring(final byte @Nullable [] classBytes, final byte @NotNull [] substring) {
+        if (classBytes == null) {
+            return false;
+        }
+        final int classLen = classBytes.length;
+        final int subLen = substring.length;
+        if (classLen < subLen) {
+            return false;
+        }
+        outer:
+        for (int startPos = 0; startPos + subLen - 1 < classLen; startPos++) {
+            for (int i = 0; i < subLen; i++) {
+                if (classBytes[startPos + i] != substring[i]) {
+                    continue outer;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     @Override
