@@ -9,9 +9,12 @@ public class BytePatternMatcher {
     int minPatternLen = Integer.MAX_VALUE;
 
     public enum Mode {
+        /** Checks if the constant pool entry contains a pattern */
+        Contains,
+        /** Checks if the whole constant pool entry equals a pattern */
         Equals,
-        StartsWith,
-        Contains
+        /** Checks if the constant pool entry starts with a pattern */
+        StartsWith
     }
 
     public BytePatternMatcher(String strPattern, Mode mode) {
@@ -57,11 +60,19 @@ public class BytePatternMatcher {
             return false;
         }
 
-        if (mode == Mode.Equals) {
-            return matchesEquals(bytes, start, len);
+        switch (mode) {
+            case Contains:
+                return contains(bytes, start, len);
+            case Equals:
+                return equals(bytes, start, len);
+            case StartsWith:
+                return startsWith(bytes, start, len);
         }
-        // coming soon: mode == StartsWith (useful for LwjglRedirectTransformer)
 
+        return false;
+    }
+
+    private boolean contains(byte[] bytes, int start, int len) {
         final int end = start + len;
 
         for (int pos = start; pos <= end - minPatternLen; pos++) {
@@ -84,7 +95,7 @@ public class BytePatternMatcher {
         return false;
     }
 
-    private boolean matchesEquals(byte[] bytes, int start, int len) {
+    private boolean equals(byte[] bytes, int start, int len) {
         final byte[][] patterns = byFirst[bytes[start] & 0xFF];
         if (patterns == null) {
             return false;
@@ -92,6 +103,25 @@ public class BytePatternMatcher {
 
         for (final byte[] pattern : patterns) {
             if (pattern.length != len) {
+                continue;
+            }
+
+            int k = pattern.length - 1;
+            while (k > 0 && bytes[start + k] == pattern[k]) k--;
+            if (k == 0) return true;
+        }
+
+        return false;
+    }
+
+    private boolean startsWith(byte[] bytes, int start, int len) {
+        final byte[][] patterns = byFirst[bytes[start] & 0xFF];
+        if (patterns == null) {
+            return false;
+        }
+
+        for (final byte[] pattern : patterns) {
+            if (pattern.length > len) {
                 continue;
             }
 
