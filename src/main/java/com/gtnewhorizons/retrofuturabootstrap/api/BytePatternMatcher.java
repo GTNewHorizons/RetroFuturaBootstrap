@@ -1,7 +1,6 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 
 public class BytePatternMatcher {
     final Mode mode;
@@ -23,30 +22,33 @@ public class BytePatternMatcher {
         this.mode = mode;
 
         final byte[][] patterns = new byte[strPatterns.length][];
+        final int[] bucketSizes = new int[256];
+        final int[] bucketIndices = new int[Math.min(strPatterns.length, 256)];
+        int bucketsCount = 0;
+
         for (int i = 0; i < strPatterns.length; i++) {
-            patterns[i] = strPatterns[i].getBytes(StandardCharsets.UTF_8);
+            final byte[] pattern = strPatterns[i].getBytes(StandardCharsets.UTF_8);
+            patterns[i] = pattern;
+
+            if (pattern.length < minPatternLen) {
+                minPatternLen = pattern.length;
+            }
+
+            final int bucketIndex = pattern[0] & 0xFF;
+            if (bucketSizes[bucketIndex]++ == 0) {
+                bucketIndices[bucketsCount++] = bucketIndex;
+            }
         }
 
-        @SuppressWarnings("unchecked")
-        final ArrayList<byte[]>[] patternsByFirstByte = new ArrayList[256];
+        for (int i = 0; i < bucketsCount; i++) {
+            final int bucketIndex = bucketIndices[i];
+            byFirst[bucketIndex] = new byte[bucketSizes[bucketIndex]][];
+            bucketSizes[bucketIndex] = 0; // reuse as write index
+        }
 
         for (final byte[] pattern : patterns) {
-            if (pattern.length < minPatternLen) minPatternLen = pattern.length;
-
-            final int firstByte = pattern[0] & 0xFF;
-            ArrayList<byte[]> patternsBucket = patternsByFirstByte[firstByte];
-            if (patternsBucket == null) {
-                patternsBucket = new ArrayList<>();
-                patternsByFirstByte[firstByte] = patternsBucket;
-            }
-            patternsBucket.add(pattern);
-        }
-
-        for (int firstByte = 0; firstByte < 256; firstByte++) {
-            final ArrayList<byte[]> patternsBucket = patternsByFirstByte[firstByte];
-            if (patternsBucket != null) {
-                byFirst[firstByte] = patternsBucket.toArray(new byte[0][0]);
-            }
+            final int bucketIndex = pattern[0] & 0xFF;
+            byFirst[bucketIndex][bucketSizes[bucketIndex]++] = pattern;
         }
     }
 
