@@ -27,9 +27,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     /** Type of each parsed constant pool entry, zero-indexed! */
     public final ConstantPoolEntryTypes @NotNull [] constantPoolEntryTypes;
 
-    /** Approximately only half of the entries are utf8 */
-    public final int constantPoolUtf8EntryCount;
-
+    /** Approximately only half of the entries are utf-8, so it's better to make an utf-8 array to iterate over them */
     public final int @NotNull [] constantPoolUtf8EntryOffsets;
 
     public final int constantPoolEndOffset;
@@ -81,7 +79,6 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
                 off += type.byteLength(bytes, off);
             }
             this.constantPoolEndOffset = off;
-            this.constantPoolUtf8EntryCount = utf8Entries;
             this.constantPoolUtf8EntryOffsets = Arrays.copyOf(utf8EntryOffsets, utf8Entries);
         }
         this.accessFlags = u16(bytes, this.constantPoolEndOffset + Offsets.pastCpAccessFlagsU16);
@@ -327,7 +324,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
      * @return {@code true} if there is a match for at least one constant pool entry.
      */
     public boolean matchesBytes(final BytePatternMatcher matcher) {
-        for (int i = 0; i < constantPoolUtf8EntryCount - 1; i++) {
+        for (int i = 0; i < constantPoolUtf8EntryOffsets.length; i++) {
             final int offset = constantPoolUtf8EntryOffsets[i];
             final int start = offset + 3;
             final int length = u16(classBytes, offset + 1);
