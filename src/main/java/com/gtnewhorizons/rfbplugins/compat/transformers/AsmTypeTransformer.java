@@ -1,5 +1,6 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
@@ -23,9 +24,9 @@ public class AsmTypeTransformer implements RfbClassTransformer {
     /** Attribute to set to "true" on a JAR to skip class transforms from this transformer entirely */
     public static final Attributes.Name MANIFEST_SAFE_ATTRIBUTE = new Attributes.Name("Has-Safe-AsmGetTypeUsage");
 
-    private static final ClassHeaderMetadata.NeedleIndex scanIndex = new ClassHeaderMetadata.NeedleIndex(
-                    "(Ljava/lang/String;)Lorg/objectweb/asm/Type;".getBytes(StandardCharsets.UTF_8))
-            .exactMatch();
+    private static final BytePatternMatcher patternMatcher = new BytePatternMatcher(
+            "(Ljava/lang/String;)Lorg/objectweb/asm/Type;".getBytes(StandardCharsets.UTF_8),
+            BytePatternMatcher.Mode.Equals);
 
     @Pattern("[a-z0-9-]+")
     @Override
@@ -57,7 +58,7 @@ public class AsmTypeTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return metadata.hasSubstrings(scanIndex);
+        return metadata.matchesBytes(patternMatcher);
     }
 
     @Override

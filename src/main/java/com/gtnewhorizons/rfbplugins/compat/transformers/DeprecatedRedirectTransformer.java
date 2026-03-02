@@ -1,6 +1,7 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
 import com.gtnewhorizons.retrofuturabootstrap.SharedConfig;
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
@@ -30,9 +31,11 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         excludedPackages = Stream.concat(Arrays.stream(fromPrefixes), Arrays.stream(toPrefixes))
                 .map(s -> s.replace('/', '.'))
                 .toArray(String[]::new);
-        scanIndex = new ClassHeaderMetadata.NeedleIndex(Arrays.stream(fromPrefixes)
-                .map(s -> s.getBytes(StandardCharsets.UTF_8))
-                .toArray(byte[][]::new));
+        patternMatcher = new BytePatternMatcher(
+                Arrays.stream(fromPrefixes)
+                        .map(s -> s.getBytes(StandardCharsets.UTF_8))
+                        .toArray(byte[][]::new),
+                BytePatternMatcher.Mode.Contains);
     }
 
     @Pattern("[a-z0-9-]+")
@@ -51,7 +54,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         "com/gtnewhorizons/retrofuturabootstrap/asm/DummyCompiler",
         "com/gtnewhorizons/retrofuturabootstrap/SecurityManager"
     };
-    final ClassHeaderMetadata.NeedleIndex scanIndex;
+    final BytePatternMatcher patternMatcher;
     final String[] excludedPackages;
 
     @Override
@@ -74,7 +77,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
             return false;
         }
 
-        return metadata.hasSubstrings(scanIndex);
+        return metadata.matchesBytes(patternMatcher);
     }
 
     @Override

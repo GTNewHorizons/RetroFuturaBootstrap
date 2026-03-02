@@ -1,5 +1,6 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
@@ -28,7 +29,7 @@ import org.objectweb.asm.tree.TypeInsnNode;
  */
 public class AsmUpgradeTransformer implements RfbClassTransformer {
     private final Map<String, String> upgradeMap = new HashMap<>();
-    private final ClassHeaderMetadata.NeedleIndex scanIndex;
+    private final BytePatternMatcher patternMatcher;
 
     public AsmUpgradeTransformer() {
         for (Class<?> visitor : UpgradedVisitors.ALL_VISITORS) {
@@ -38,11 +39,11 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
             upgradeMap.put(Type.getInternalName(visitor.getSuperclass()), Type.getInternalName(visitor));
         }
 
-        scanIndex = new ClassHeaderMetadata.NeedleIndex(
-                        Arrays.stream(upgradeMap.keySet().toArray(new String[0]))
-                                .map(s -> s.getBytes(StandardCharsets.UTF_8))
-                                .toArray(byte[][]::new))
-                .exactMatch();
+        patternMatcher = new BytePatternMatcher(
+                Arrays.stream(upgradeMap.keySet().toArray(new String[0]))
+                        .map(s -> s.getBytes(StandardCharsets.UTF_8))
+                        .toArray(byte[][]::new),
+                BytePatternMatcher.Mode.Equals);
     }
 
     @Pattern("[a-z0-9-]+")
@@ -66,7 +67,7 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
         if (metadata == null) {
             return false;
         }
-        return metadata.hasSubstrings(scanIndex);
+        return metadata.matchesBytes(patternMatcher);
     }
 
     @Override

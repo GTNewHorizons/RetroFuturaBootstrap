@@ -1,5 +1,6 @@
 package com.gtnewhorizons.retrofuturabootstrap.test;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -10,23 +11,25 @@ import org.junit.jupiter.api.Test;
 
 public class ClassHeaderMetadataTest {
 
-    static byte[] bytes(String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
-    }
-
     @Test
-    void hasSubstring() throws IOException {
+    void matchesBytes() throws IOException {
         byte[] classBytes = stubClassBytes("org/lwjgl/opengl/GL11");
         ClassHeaderMetadata metadata = new ClassHeaderMetadata(classBytes);
 
-        Assertions.assertFalse(metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("org/whatever"))));
-        Assertions.assertTrue(metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("org"))));
-        Assertions.assertTrue(metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("lwjgl"))));
-        Assertions.assertTrue(metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("org/lwjgl/"))));
-        Assertions.assertTrue(
-                metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("org/lwjgl/opengl/GL11"))));
-        Assertions.assertFalse(
-                metadata.hasSubstrings(new ClassHeaderMetadata.NeedleIndex(bytes("org/lwjgl/opengl/GL11/meh"))));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/whatever")));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org")));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("lwjgl")));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/")));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11")));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11/meh")));
+    }
+
+    private static BytePatternMatcher matcher(String str) {
+        return new BytePatternMatcher(bytes(str), BytePatternMatcher.Mode.Contains);
+    }
+
+    private static byte[] bytes(String s) {
+        return s.getBytes(StandardCharsets.UTF_8);
     }
 
     private static byte[] stubClassBytes(String stubPoolConstant) throws IOException {
