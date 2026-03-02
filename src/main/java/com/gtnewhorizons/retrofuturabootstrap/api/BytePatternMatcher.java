@@ -1,5 +1,6 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 public class BytePatternMatcher {
@@ -14,12 +15,17 @@ public class BytePatternMatcher {
         Contains
     }
 
-    public BytePatternMatcher(byte[] pattern, Mode mode) {
-        this(new byte[][] {pattern}, mode);
+    public BytePatternMatcher(String strPattern, Mode mode) {
+        this(new String[] {strPattern}, mode);
     }
 
-    public BytePatternMatcher(byte[][] patterns, Mode mode) {
+    public BytePatternMatcher(String[] strPatterns, Mode mode) {
         this.mode = mode;
+
+        final byte[][] patterns = new byte[strPatterns.length][];
+        for (int i = 0; i < strPatterns.length; i++) {
+            patterns[i] = strPatterns[i].getBytes(StandardCharsets.UTF_8);
+        }
 
         @SuppressWarnings("unchecked")
         final ArrayList<byte[]>[] patternsByFirstByte = new ArrayList[256];

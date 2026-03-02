@@ -6,7 +6,6 @@ import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UuidStringConstructor;
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
@@ -35,8 +34,8 @@ public class UuidTransformer implements RfbClassTransformer {
 
     final String UUID_NAME = Type.getInternalName(UUID.class);
     final String REDIRECTION_NAME = Type.getInternalName(UuidStringConstructor.class);
-    final BytePatternMatcher patternMatcher = new BytePatternMatcher(
-            "(Ljava/lang/String;)Ljava/util/UUID;".getBytes(StandardCharsets.UTF_8), BytePatternMatcher.Mode.Equals);
+    final BytePatternMatcher patternMatcher =
+            new BytePatternMatcher("(Ljava/lang/String;)Ljava/util/UUID;", BytePatternMatcher.Mode.Equals);
 
     @Override
     public boolean shouldTransformClass(

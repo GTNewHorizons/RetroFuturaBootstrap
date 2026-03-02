@@ -5,7 +5,6 @@ import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -25,11 +24,7 @@ public class ClassHeaderMetadataTest {
     }
 
     private static BytePatternMatcher matcher(String str) {
-        return new BytePatternMatcher(bytes(str), BytePatternMatcher.Mode.Contains);
-    }
-
-    private static byte[] bytes(String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
+        return new BytePatternMatcher(str, BytePatternMatcher.Mode.Contains);
     }
 
     private static byte[] stubClassBytes(String stubPoolConstant) throws IOException {
