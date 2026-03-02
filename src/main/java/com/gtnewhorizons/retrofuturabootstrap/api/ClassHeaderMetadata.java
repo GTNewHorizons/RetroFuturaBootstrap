@@ -345,6 +345,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
     }
 
     /** @deprecated Use much more performant {@link #matchesBytes} instead */
+    @Deprecated
     public static boolean hasSubstring(final byte @Nullable [] classBytes, final byte @NotNull [] substring) {
         if (classBytes == null) {
             return false;
