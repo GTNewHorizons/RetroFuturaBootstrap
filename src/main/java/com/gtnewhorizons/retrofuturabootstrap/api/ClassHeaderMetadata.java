@@ -308,104 +308,12 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         return u16(classBytes, Offsets.majorVersionU16);
     }
 
-    public static final class NeedleIndex {
-        // first byte -> matched needles
-        final byte[][][] byFirst = new byte[256][][];
-        int minNeedleLen = Integer.MAX_VALUE;
-        boolean exactMatch = false;
-
-        public NeedleIndex(byte[] needle) {
-            this(new byte[][] {needle});
-        }
-
-        public NeedleIndex(byte[][] needles) {
-            @SuppressWarnings("unchecked")
-            final ArrayList<byte[]>[] needlesByFirstByte = new ArrayList[256];
-
-            for (final byte[] needle : needles) {
-                if (needle.length < this.minNeedleLen) this.minNeedleLen = needle.length;
-
-                final int firstByte = needle[0] & 0xFF;
-                ArrayList<byte[]> needlesBucket = needlesByFirstByte[firstByte];
-                if (needlesBucket == null) {
-                    needlesBucket = new ArrayList<>();
-                    needlesByFirstByte[firstByte] = needlesBucket;
-                }
-                needlesBucket.add(needle);
-            }
-
-            for (int firstByte = 0; firstByte < 256; firstByte++) {
-                final ArrayList<byte[]> needlesBucket = needlesByFirstByte[firstByte];
-                if (needlesBucket != null) {
-                    this.byFirst[firstByte] = needlesBucket.toArray(new byte[needlesBucket.size()][]);
-                }
-            }
-        }
-
-        public NeedleIndex exactMatch() {
-            this.exactMatch = true;
-            return this;
-        }
-
-        public boolean matchesAny(byte[] hay, int start, int len) {
-            if (len < minNeedleLen) {
-                return false;
-            }
-
-            if (exactMatch) {
-                return matchesAnyExact(hay, start, len);
-            }
-
-            final int end = start + len;
-
-            for (int pos = start; pos <= end - minNeedleLen; pos++) {
-                final byte[][] needles = byFirst[hay[pos] & 0xFF];
-                if (needles == null) {
-                    continue;
-                }
-
-                for (final byte[] needle : needles) {
-                    final int needleLen = needle.length;
-                    if (needleLen > end - pos) {
-                        continue;
-                    }
-
-                    int k = needleLen - 1;
-                    while (k > 0 && hay[pos + k] == needle[k]) k--;
-                    if (k == 0) return true;
-                }
-            }
-
-            return false;
-        }
-
-        private boolean matchesAnyExact(byte[] hay, int start, int len) {
-            final byte[][] needles = byFirst[hay[start] & 0xFF];
-            if (needles == null) {
-                return false;
-            }
-
-            for (final byte[] needle : needles) {
-                final int needleLen = needle.length;
-                if (needleLen != len) {
-                    continue;
-                }
-
-                int k = needleLen - 1;
-                while (k > 0 && hay[start + k] == needle[k]) k--;
-                if (k == 0) return true;
-            }
-
-            return false;
-        }
-    }
-
     /**
-     * Searches for a sub"string" (byte array) in a class bytes' constant pool.
-     * @param needleIndex The list of substrings to search for.
-     * @return If the substring was found somewhere in the class.
+     * Searches for byte patterns in the constant pool.
+     * @param matcher A configured byte matcher with patterns to search for.
+     * @return {@code true} if there is a match for at least one constant pool entry.
      */
-    public boolean hasSubstrings(final NeedleIndex needleIndex) {
+    public boolean matchesBytes(final BytePatternMatcher matcher) {
         for (int i = 0; i < constantPoolEntryCount - 1; i++) {
             final ConstantPoolEntryTypes type = constantPoolEntryTypes[i];
             if (type != ConstantPoolEntryTypes.Utf8) {
@@ -416,7 +324,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
             final int start = offset + 3;
             final int length = u16(classBytes, offset + 1);
 
-            if (needleIndex.matchesAny(classBytes, start, length)) {
+            if (matcher.matches(classBytes, start, length)) {
                 return true;
             }
         }

@@ -1,5 +1,6 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
@@ -53,12 +54,13 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
             "set(Ljava/lang/Object;Ljava/lang/Object;)V",
             "get(Ljava/lang/Object;)Ljava/lang/Object"));
 
-    final ClassHeaderMetadata.NeedleIndex scanIndex = new ClassHeaderMetadata.NeedleIndex(new byte[][] {
+    final BytePatternMatcher patternMatcher = new BytePatternMatcher(
+            new byte[][] {
                 CLASS_GET_DECLARED_FIELD_STRING_DESC.getBytes(StandardCharsets.UTF_8),
                 CLASS_GET_DECLARED_FIELD_EMPTY_DESC.getBytes(StandardCharsets.UTF_8),
                 FIELD_NAME.getBytes(StandardCharsets.UTF_8)
-            })
-            .exactMatch();
+            },
+            BytePatternMatcher.Mode.Equals);
 
     @Override
     public boolean shouldTransformClass(
@@ -78,7 +80,7 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
         if (metadata == null) {
             return false;
         }
-        return metadata.hasSubstrings(scanIndex);
+        return metadata.matchesBytes(patternMatcher);
     }
 
     @Override

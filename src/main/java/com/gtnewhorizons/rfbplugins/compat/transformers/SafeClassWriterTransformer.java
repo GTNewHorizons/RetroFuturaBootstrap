@@ -1,5 +1,6 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
@@ -34,8 +35,8 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
 
     final String CLASS_WRITER_NAME = ClassWriter.class.getName().replace('.', '/');
     final String SAFE_WRITER_NAME = SafeAsmClassWriter.class.getName().replace('.', '/');
-    final ClassHeaderMetadata.NeedleIndex scanIndex =
-            new ClassHeaderMetadata.NeedleIndex(CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8)).exactMatch();
+    final BytePatternMatcher patternMatcher =
+            new BytePatternMatcher(CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8), BytePatternMatcher.Mode.Equals);
 
     @Override
     public boolean shouldTransformClass(
@@ -55,7 +56,7 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
         if (metadata == null) {
             return false;
         }
-        return metadata.hasSubstrings(scanIndex);
+        return metadata.matchesBytes(patternMatcher);
     }
 
     @Override
