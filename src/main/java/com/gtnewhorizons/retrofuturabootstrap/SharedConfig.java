@@ -25,7 +25,8 @@ public class SharedConfig {
 
     /** Controlled by system property {@code rfb.dumpLoadedClassesPerTransformer=false}, whether loaded classes should be dumped to RFB_CLASS_DUMP/, with a file per asm transformer */
     public static final boolean cfgDumpLoadedClassesPerTransformer =
-            getBooleanOr("rfb.dumpLoadedClassesPerTransformer", false);
+            getBooleanOr("rfb.dumpLoadedClassesPerTransformer", false)
+                    || Boolean.parseBoolean(System.getProperty("legacy.debugClassLoadingFiner", "false"));
 
     /** Controlled by system property {@code rfb.dumpClassesAsynchronously=true}, if the class dumps are done from another Thread to avoid slow IO */
     public static final boolean cfgDumpClassesAsynchronously = getBooleanOr("rfb.dumpClassesAsynchronously", true);
