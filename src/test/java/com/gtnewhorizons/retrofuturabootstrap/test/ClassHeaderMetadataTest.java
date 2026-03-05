@@ -1,29 +1,30 @@
 package com.gtnewhorizons.retrofuturabootstrap.test;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class ClassHeaderMetadataTest {
 
-    static byte[] bytes(String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
+    @Test
+    void matchesBytes() throws IOException {
+        byte[] classBytes = stubClassBytes("org/lwjgl/opengl/GL11");
+        ClassHeaderMetadata metadata = new ClassHeaderMetadata(classBytes);
+
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/whatever")));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org")));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("lwjgl")));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/")));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11")));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11/meh")));
     }
 
-    @Test
-    void hasSubstring() throws IOException {
-        byte[] classBytes = stubClassBytes("org/lwjgl/opengl/GL11");
-
-        Assertions.assertFalse(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/whatever")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("lwjgl")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/lwjgl/")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/lwjgl/opengl/GL11")));
-        Assertions.assertFalse(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/lwjgl/opengl/GL11/meh")));
+    private static BytePatternMatcher matcher(String str) {
+        return new BytePatternMatcher(str, BytePatternMatcher.Mode.Contains);
     }
 
     private static byte[] stubClassBytes(String stubPoolConstant) throws IOException {

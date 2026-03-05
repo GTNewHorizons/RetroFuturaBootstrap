@@ -1,11 +1,11 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.SafeAsmClassWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import org.intellij.lang.annotations.Pattern;
@@ -33,8 +33,8 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
     }
 
     final String CLASS_WRITER_NAME = ClassWriter.class.getName().replace('.', '/');
-    final byte[] CLASS_WRITER_BYTES = CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8);
     final String SAFE_WRITER_NAME = SafeAsmClassWriter.class.getName().replace('.', '/');
+    final BytePatternMatcher patternMatcher = new BytePatternMatcher(CLASS_WRITER_NAME, BytePatternMatcher.Mode.Equals);
 
     @Override
     public boolean shouldTransformClass(
@@ -50,26 +50,31 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), CLASS_WRITER_BYTES);
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
+            return false;
+        }
+        return metadata.matchesBytes(patternMatcher);
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
+        boolean transformed = false;
         if (node == null) {
-            return;
+            return false;
         }
+
         if (node.superName.equals(CLASS_WRITER_NAME)) {
             node.superName = SAFE_WRITER_NAME;
+            transformed = true;
         }
-        if (node.methods == null) {
-            return;
-        }
+
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
                 continue;
@@ -79,14 +84,18 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
                     final TypeInsnNode insn = (TypeInsnNode) rawInsn;
                     if (insn.desc.equals(CLASS_WRITER_NAME)) {
                         insn.desc = SAFE_WRITER_NAME;
+                        transformed = true;
                     }
                 } else if (rawInsn.getType() == AbstractInsnNode.METHOD_INSN) {
                     final MethodInsnNode insn = (MethodInsnNode) rawInsn;
                     if (insn.owner.equals(CLASS_WRITER_NAME) && insn.name.equals("<init>")) {
                         insn.owner = SAFE_WRITER_NAME;
+                        transformed = true;
                     }
                 }
             }
         }
+
+        return transformed;
     }
 }

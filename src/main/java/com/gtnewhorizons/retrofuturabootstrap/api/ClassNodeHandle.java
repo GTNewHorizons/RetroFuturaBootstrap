@@ -13,6 +13,7 @@ public final class ClassNodeHandle {
     private final @Nullable ClassHeaderMetadata originalMetadata;
     private final int readerOptions;
     private boolean initialized = false;
+    private boolean dirty = false;
     private @Nullable ClassNode node = null;
     private @Nullable FastClassAccessor accessor = null;
     private int writerFlags = 0;
@@ -70,6 +71,14 @@ public final class ClassNodeHandle {
         }
     }
 
+    /**
+     * Marks the class as modified to compute class bytes later.
+     * FRB calls it automatically when you return true in transformClassIfNeeded.
+     */
+    public void markDirty() {
+        dirty = true;
+    }
+
     /** Gets the parsed node of the currently processed class. This can cause full class parsing! */
     public @Nullable ClassNode getNode() {
         ensureInitialized();
@@ -87,9 +96,12 @@ public final class ClassNodeHandle {
         }
     }
 
-    /** Computes the byte[] array of the transformed class. Returns the original bytes if {@link ClassNodeHandle#getNode()} was never called. */
+    /**
+     * Computes the byte[] array of the transformed class.
+     * Returns the original bytes if some of the transformers returned true in transformClassIfNeeded.
+     */
     public byte @Nullable [] computeBytes() {
-        if (!initialized) {
+        if (!dirty || !initialized) {
             return originalBytes;
         }
         if (node == null) {
