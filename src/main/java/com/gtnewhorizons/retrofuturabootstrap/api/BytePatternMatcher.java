@@ -1,6 +1,7 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class BytePatternMatcher {
     final Mode mode;
@@ -43,6 +44,9 @@ public class BytePatternMatcher {
             }
         }
 
+        // Ascending sorting by length
+        Arrays.sort(patterns, (a, b) -> Integer.compare(a.length, b.length));
+
         for (int i = 0; i < bucketsCount; i++) {
             final int bucketIndex = bucketIndices[i];
             byFirst[bucketIndex] = new byte[bucketSizes[bucketIndex]][];
@@ -83,7 +87,7 @@ public class BytePatternMatcher {
 
             for (final byte[] pattern : patterns) {
                 if (pattern.length > end - pos) {
-                    continue;
+                    break;
                 }
 
                 int k = pattern.length - 1;
@@ -102,8 +106,11 @@ public class BytePatternMatcher {
         }
 
         for (final byte[] pattern : patterns) {
-            if (pattern.length != len) {
+            if (pattern.length < len) {
                 continue;
+            }
+            if (pattern.length > len) {
+                break;
             }
 
             int k = pattern.length - 1;
@@ -122,7 +129,7 @@ public class BytePatternMatcher {
 
         for (final byte[] pattern : patterns) {
             if (pattern.length > len) {
-                continue;
+                break;
             }
 
             int k = pattern.length - 1;
