@@ -1,29 +1,60 @@
 package com.gtnewhorizons.retrofuturabootstrap.test;
 
+import static com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher.Mode.Contains;
+import static com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher.Mode.Equals;
+import static com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher.Mode.StartsWith;
+
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class ClassHeaderMetadataTest {
 
-    static byte[] bytes(String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
+    @Test
+    void matchesBytesContains() throws IOException {
+        byte[] classBytes = stubClassBytes("org/lwjgl/opengl/GL11");
+        ClassHeaderMetadata metadata = new ClassHeaderMetadata(classBytes);
+
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/whatever", Contains)));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org", Contains)));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("lwjgl", Contains)));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/", Contains)));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11", Contains)));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11/meh", Contains)));
     }
 
     @Test
-    void hasSubstring() throws IOException {
+    void matchesBytesEquals() throws IOException {
         byte[] classBytes = stubClassBytes("org/lwjgl/opengl/GL11");
+        ClassHeaderMetadata metadata = new ClassHeaderMetadata(classBytes);
 
-        Assertions.assertFalse(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/whatever")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("lwjgl")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/lwjgl/")));
-        Assertions.assertTrue(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/lwjgl/opengl/GL11")));
-        Assertions.assertFalse(ClassHeaderMetadata.hasSubstring(classBytes, bytes("org/lwjgl/opengl/GL11/meh")));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/whatever", Equals)));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org", Equals)));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("lwjgl", Equals)));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/lwjgl/", Equals)));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11", Equals)));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11/meh", Equals)));
+    }
+
+    @Test
+    void matchesBytesStartsWith() throws IOException {
+        byte[] classBytes = stubClassBytes("org/lwjgl/opengl/GL11");
+        ClassHeaderMetadata metadata = new ClassHeaderMetadata(classBytes);
+
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/whatever", StartsWith)));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org", StartsWith)));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("lwjgl", StartsWith)));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/", StartsWith)));
+        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11", StartsWith)));
+        Assertions.assertFalse(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11/meh", StartsWith)));
+    }
+
+    private static BytePatternMatcher matcher(String str, BytePatternMatcher.Mode mode) {
+        return new BytePatternMatcher(str, mode);
     }
 
     private static byte[] stubClassBytes(String stubPoolConstant) throws IOException {

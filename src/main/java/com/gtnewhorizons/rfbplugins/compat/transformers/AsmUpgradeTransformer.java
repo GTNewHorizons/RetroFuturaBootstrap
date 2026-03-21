@@ -1,12 +1,12 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UpgradedTreeNodes;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UpgradedVisitors;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.jar.Manifest;
@@ -26,9 +26,8 @@ import org.objectweb.asm.tree.TypeInsnNode;
  * This allows those transformers to work on newer classes.
  */
 public class AsmUpgradeTransformer implements RfbClassTransformer {
-    private static final byte[] quickScan = "org/objectweb/asm".getBytes(StandardCharsets.UTF_8);
-
     private final Map<String, String> upgradeMap = new HashMap<>();
+    private final BytePatternMatcher patternMatcher;
 
     public AsmUpgradeTransformer() {
         for (Class<?> visitor : UpgradedVisitors.ALL_VISITORS) {
@@ -37,6 +36,9 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
         for (Class<?> visitor : UpgradedTreeNodes.ALL_NODES) {
             upgradeMap.put(Type.getInternalName(visitor.getSuperclass()), Type.getInternalName(visitor));
         }
+
+        patternMatcher =
+                new BytePatternMatcher(upgradeMap.keySet().toArray(new String[0]), BytePatternMatcher.Mode.Equals);
     }
 
     @Pattern("[a-z0-9-]+")
@@ -56,32 +58,34 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
             return false;
         }
 
-        final byte[] original = classNode.getOriginalBytes();
-        return ClassHeaderMetadata.hasSubstring(original, quickScan);
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
+            return false;
+        }
+        return metadata.matchesBytes(patternMatcher);
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
+        boolean transformed = false;
         if (node == null) {
-            return;
+            return false;
         }
 
         if (node.superName != null) {
             final String superclass = upgradeMap.get(node.superName);
             if (superclass != null) {
                 node.superName = superclass;
+                transformed = true;
             }
         }
 
-        if (node.methods == null) {
-            return;
-        }
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
                 continue;
@@ -92,6 +96,7 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
                     final String upgraded = upgradeMap.get(insn.desc);
                     if (upgraded != null) {
                         insn.desc = upgraded;
+                        transformed = true;
                     }
                 } else if (rawInsn.getType() == AbstractInsnNode.METHOD_INSN) {
                     final MethodInsnNode insn = (MethodInsnNode) rawInsn;
@@ -99,10 +104,13 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
                         final String upgraded = upgradeMap.get(insn.owner);
                         if (upgraded != null) {
                             insn.owner = upgraded;
+                            transformed = true;
                         }
                     }
                 }
             }
         }
+
+        return transformed;
     }
 }

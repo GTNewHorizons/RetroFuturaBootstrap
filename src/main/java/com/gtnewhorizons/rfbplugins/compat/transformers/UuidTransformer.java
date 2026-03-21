@@ -1,11 +1,11 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UuidStringConstructor;
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
@@ -33,8 +33,9 @@ public class UuidTransformer implements RfbClassTransformer {
     }
 
     final String UUID_NAME = Type.getInternalName(UUID.class);
-    final byte[] UUID_NAME_BYTES = UUID_NAME.getBytes(StandardCharsets.UTF_8);
     final String REDIRECTION_NAME = Type.getInternalName(UuidStringConstructor.class);
+    final BytePatternMatcher patternMatcher =
+            new BytePatternMatcher("(Ljava/lang/String;)Ljava/util/UUID;", BytePatternMatcher.Mode.Equals);
 
     @Override
     public boolean shouldTransformClass(
@@ -49,24 +50,32 @@ public class UuidTransformer implements RfbClassTransformer {
         if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
             return false;
         }
-        if (classNode.getOriginalMetadata() != null && classNode.getOriginalMetadata().majorVersion >= Opcodes.V9) {
+
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
             return false;
         }
 
-        return ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), UUID_NAME_BYTES);
+        if (metadata.majorVersion >= Opcodes.V9) {
+            return false;
+        }
+
+        return metadata.matchesBytes(patternMatcher);
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
-        if (node == null || node.methods == null) {
-            return;
+        boolean transformed = false;
+        if (node == null) {
+            return false;
         }
+
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
                 continue;
@@ -78,9 +87,12 @@ public class UuidTransformer implements RfbClassTransformer {
                             && insn.name.equals("fromString")
                             && insn.desc.equals("(Ljava/lang/String;)Ljava/util/UUID;")) {
                         insn.owner = REDIRECTION_NAME;
+                        transformed = true;
                     }
                 }
             }
         }
+
+        return transformed;
     }
 }

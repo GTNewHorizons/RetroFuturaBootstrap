@@ -68,19 +68,20 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
-        if (node == null || node.methods == null) {
-            return;
+        if (node == null) {
+            return false;
         }
 
         final boolean classIsInterface = (node.access & Opcodes.ACC_INTERFACE) != 0;
         final String internalClassName = node.name;
+        boolean transformed = false;
 
         // classLoader.findClassMetadata() reads the class bytes and constructs ClassHeaderMetadata with expensive
         // <init> when the class hasn't been loaded by this loader. Furthermore, this method doesn't load the class,
@@ -96,7 +97,7 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
 
             for (AbstractInsnNode insn : method.instructions) {
                 if (insn instanceof InvokeDynamicInsnNode) {
-                    fixInvokeDynamicInsn(
+                    transformed |= fixInvokeDynamicInsn(
                             classLoader,
                             internalClassName,
                             classIsInterface,
@@ -105,19 +106,23 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
                 }
             }
         }
+
+        return transformed;
     }
 
-    private void fixInvokeDynamicInsn(
+    private boolean fixInvokeDynamicInsn(
             ExtensibleClassLoader classLoader,
             String internalClassName,
             boolean classIsInterface,
             HashMap<String, Boolean> ownerInterfaceCache,
             InvokeDynamicInsnNode insn) {
+        boolean transformed = false;
         final Handle fixedBootstrapMethod =
                 fixHandleIfNeeded(classLoader, internalClassName, classIsInterface, ownerInterfaceCache, insn.bsm);
 
         if (fixedBootstrapMethod != null) {
             insn.bsm = fixedBootstrapMethod;
+            transformed = true;
         }
 
         if (insn.bsmArgs != null) {
@@ -132,9 +137,12 @@ public class InterfaceMethodRefFixer implements RfbClassTransformer {
 
                 if (fixedBootstrapArg != null) {
                     insn.bsmArgs[i] = fixedBootstrapArg;
+                    transformed = true;
                 }
             }
         }
+
+        return transformed;
     }
 
     @Nullable
