@@ -1,5 +1,6 @@
 package com.gtnewhorizons.retrofuturabootstrap.api;
 
+import com.gtnewhorizons.retrofuturabootstrap.asm.SafeAsmClassWriter;
 import org.intellij.lang.annotations.MagicConstant;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ClassReader;
@@ -94,7 +95,7 @@ public final class ClassNodeHandle {
         if (node == null) {
             return null;
         }
-        final ClassWriter writer = new ClassWriter(writerFlags);
+        final SafeAsmClassWriter writer = new SafeAsmClassWriter(writerFlags);
         node.accept(writer);
         return writer.toByteArray();
     }

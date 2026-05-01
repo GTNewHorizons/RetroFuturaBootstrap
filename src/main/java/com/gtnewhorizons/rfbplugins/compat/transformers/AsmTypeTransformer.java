@@ -48,11 +48,9 @@ public class AsmTypeTransformer implements RfbClassTransformer {
         if (classNode.getOriginalMetadata() != null && classNode.getOriginalMetadata().majorVersion >= Opcodes.V9) {
             return false;
         }
-        if (classNode.isOriginal()) {
-            final byte[] original = classNode.getOriginalBytes();
-            return ClassHeaderMetadata.hasSubstring(original, quickScan);
-        }
-        return true;
+
+        final byte[] original = classNode.getOriginalBytes();
+        return ClassHeaderMetadata.hasSubstring(original, quickScan);
     }
 
     @Override
