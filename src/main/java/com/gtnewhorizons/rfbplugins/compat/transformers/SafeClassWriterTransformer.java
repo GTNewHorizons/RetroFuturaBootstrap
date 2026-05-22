@@ -1,11 +1,11 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.SafeAsmClassWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import org.intellij.lang.annotations.Pattern;
@@ -26,15 +26,17 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
     /** Attribute to set to "true" on a JAR to skip class transforms from this transformer entirely */
     public static final Attributes.Name MANIFEST_SAFE_ATTRIBUTE = new Attributes.Name("Has-Safe-ClassWriters");
 
+    final String CLASS_WRITER_NAME = ClassWriter.class.getName().replace('.', '/');
+    final String SAFE_WRITER_NAME = SafeAsmClassWriter.class.getName().replace('.', '/');
+
+    final BytePatternMatcher classWriterMatcher =
+            new BytePatternMatcher(CLASS_WRITER_NAME, BytePatternMatcher.Mode.Equals);
+
     @Pattern("[a-z0-9-]+")
     @Override
     public @NotNull String id() {
         return "safe-class-writer";
     }
-
-    final String CLASS_WRITER_NAME = ClassWriter.class.getName().replace('.', '/');
-    final byte[] CLASS_WRITER_BYTES = CLASS_WRITER_NAME.getBytes(StandardCharsets.UTF_8);
-    final String SAFE_WRITER_NAME = SafeAsmClassWriter.class.getName().replace('.', '/');
 
     @Override
     public boolean shouldTransformClass(
@@ -50,7 +52,8 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return ClassHeaderMetadata.hasSubstring(classNode.getOriginalBytes(), CLASS_WRITER_BYTES);
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        return metadata != null && metadata.matchesBytes(classWriterMatcher);
     }
 
     @Override

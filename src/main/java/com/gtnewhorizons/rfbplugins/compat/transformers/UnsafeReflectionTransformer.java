@@ -1,12 +1,12 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UnsafeReflectionRedirector;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
@@ -28,34 +28,34 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
     /** Attribute to set to "true" on a JAR to skip class transforms from this transformer entirely */
     public static final Attributes.Name MANIFEST_SAFE_ATTRIBUTE = new Attributes.Name("Has-Safe-Reflection");
 
+    final String CLASS_NAME = Type.getInternalName(Class.class);
+    final String FIELD_NAME = Type.getInternalName(Field.class);
+    final String REDIRECTION_NAME = Type.getInternalName(UnsafeReflectionRedirector.class);
+
+    final String CLASS_GET_DECLARED_FIELD_DESC = "(Ljava/lang/String;)Ljava/lang/reflect/Field;";
+    final String CLASS_GET_DECLARED_FIELDS_DESC = "()[Ljava/lang/reflect/Field;";
+
+    // Redirect set methods with a type that can be coerced to int, and get methods with types int can be coerced to
+    final HashSet<String> REDIRECT_FIELD_METHODS = new HashSet<>(Arrays.asList(
+            "setInt(Ljava/lang/Object;I)V",
+            "setByte(Ljava/lang/Object;B)V",
+            "setShort(Ljava/lang/Object;S)V",
+            "setChar(Ljava/lang/Object;C)V",
+            "getInt(Ljava/lang/Object;)I",
+            "getLong(Ljava/lang/Object;)J",
+            "getFloat(Ljava/lang/Object;)F",
+            "getDouble(Ljava/lang/Object;)D",
+            "set(Ljava/lang/Object;Ljava/lang/Object;)V",
+            "get(Ljava/lang/Object;)Ljava/lang/Object"));
+
+    final BytePatternMatcher reflectionMatcher = new BytePatternMatcher(
+            new String[] {CLASS_GET_DECLARED_FIELD_DESC, CLASS_GET_DECLARED_FIELDS_DESC, FIELD_NAME},
+            BytePatternMatcher.Mode.Equals);
+
     @Pattern("[a-z0-9-]+")
     @Override
     public @NotNull String id() {
         return "unsafe-reflection";
-    }
-
-    final String CLASS_NAME = Type.getInternalName(Class.class);
-    final byte[] CLASS_NAME_BYTES = CLASS_NAME.getBytes(StandardCharsets.UTF_8);
-    final String FIELD_NAME = Type.getInternalName(Field.class);
-    final byte[] FIELD_NAME_BYTES = FIELD_NAME.getBytes(StandardCharsets.UTF_8);
-    final String REDIRECTION_NAME = Type.getInternalName(UnsafeReflectionRedirector.class);
-    final Set<String> REDIRECT_FIELD_METHODS = new HashSet<>();
-
-    final byte[][] quickScans = new byte[][] {CLASS_NAME_BYTES, FIELD_NAME_BYTES};
-
-    {
-        // Redirect set methods with a type that can be coerced to int, and get methods with types int can be coerced to
-        REDIRECT_FIELD_METHODS.addAll(Arrays.asList(
-                "setInt(Ljava/lang/Object;I)V",
-                "setByte(Ljava/lang/Object;B)V",
-                "setShort(Ljava/lang/Object;S)V",
-                "setChar(Ljava/lang/Object;C)V",
-                "getInt(Ljava/lang/Object;)I",
-                "getLong(Ljava/lang/Object;)J",
-                "getFloat(Ljava/lang/Object;)F",
-                "getDouble(Ljava/lang/Object;)D",
-                "set(Ljava/lang/Object;Ljava/lang/Object;)V",
-                "get(Ljava/lang/Object;)Ljava/lang/Object"));
     }
 
     @Override
@@ -72,7 +72,8 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return ClassHeaderMetadata.hasSubstrings(classNode.getOriginalBytes(), quickScans);
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        return metadata != null && metadata.matchesBytes(reflectionMatcher);
     }
 
     @Override
@@ -95,14 +96,14 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
                     final MethodInsnNode insn = (MethodInsnNode) rawInsn;
                     if (insn.owner.equals(CLASS_NAME)
                             && insn.name.equals("getDeclaredField")
-                            && insn.desc.equals("(Ljava/lang/String;)Ljava/lang/reflect/Field;")) {
+                            && insn.desc.equals(CLASS_GET_DECLARED_FIELD_DESC)) {
                         // getDeclaredField(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;
                         insn.setOpcode(Opcodes.INVOKESTATIC);
                         insn.owner = REDIRECTION_NAME;
                         insn.desc = "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;";
                     } else if (insn.owner.equals(CLASS_NAME)
                             && insn.name.equals("getDeclaredFields")
-                            && insn.desc.equals("()[Ljava/lang/reflect/Field;")) {
+                            && insn.desc.equals(CLASS_GET_DECLARED_FIELDS_DESC)) {
                         // getDeclaredFields(Ljava/lang/Class;)[Ljava/lang/reflect/Field;
                         insn.setOpcode(Opcodes.INVOKESTATIC);
                         insn.owner = REDIRECTION_NAME;

@@ -1,10 +1,10 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
-import java.nio.charset.StandardCharsets;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import org.intellij.lang.annotations.Pattern;
@@ -23,7 +23,8 @@ public class AsmTypeTransformer implements RfbClassTransformer {
     /** Attribute to set to "true" on a JAR to skip class transforms from this transformer entirely */
     public static final Attributes.Name MANIFEST_SAFE_ATTRIBUTE = new Attributes.Name("Has-Safe-AsmGetTypeUsage");
 
-    private static final byte[] quickScan = "org/objectweb/asm/Type".getBytes(StandardCharsets.UTF_8);
+    private static final BytePatternMatcher methodDescMatcher =
+            new BytePatternMatcher("(Ljava/lang/String;)Lorg/objectweb/asm/Type;", BytePatternMatcher.Mode.Equals);
 
     @Pattern("[a-z0-9-]+")
     @Override
@@ -44,13 +45,18 @@ public class AsmTypeTransformer implements RfbClassTransformer {
         if (manifest != null && "true".equals(manifest.getMainAttributes().getValue(MANIFEST_SAFE_ATTRIBUTE))) {
             return false;
         }
-        // Assume classes for java 9+ were tested against a newer asm.
-        if (classNode.getOriginalMetadata() != null && classNode.getOriginalMetadata().majorVersion >= Opcodes.V9) {
+
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
             return false;
         }
 
-        final byte[] original = classNode.getOriginalBytes();
-        return ClassHeaderMetadata.hasSubstring(original, quickScan);
+        // Assume classes for java 9+ were tested against a newer asm.
+        if (metadata.majorVersion >= Opcodes.V9) {
+            return false;
+        }
+
+        return metadata.matchesBytes(methodDescMatcher);
     }
 
     @Override

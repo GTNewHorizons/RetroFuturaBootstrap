@@ -1,11 +1,11 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
 import com.gtnewhorizons.retrofuturabootstrap.SharedConfig;
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.jar.Manifest;
 import java.util.stream.Stream;
@@ -26,14 +26,14 @@ import org.objectweb.asm.tree.MethodNode;
  */
 public class DeprecatedRedirectTransformer extends Remapper implements RfbClassTransformer {
 
-    public DeprecatedRedirectTransformer() {
-        excludedPackages = Stream.concat(Arrays.stream(fromPrefixes), Arrays.stream(toPrefixes))
-                .map(s -> s.replace('/', '.'))
-                .toArray(String[]::new);
-        quickScans = Arrays.stream(fromPrefixes)
-                .map(s -> s.getBytes(StandardCharsets.UTF_8))
-                .toArray(byte[][]::new);
-    }
+    final String[] fromPrefixes = new String[] {"java/lang/Compiler", "java/lang/SecurityManager"};
+    final String[] toPrefixes = new String[] {
+        "com/gtnewhorizons/retrofuturabootstrap/asm/DummyCompiler",
+        "com/gtnewhorizons/retrofuturabootstrap/SecurityManager"
+    };
+
+    final BytePatternMatcher deprecatedClassMatcher =
+            new BytePatternMatcher(fromPrefixes, BytePatternMatcher.Mode.Contains);
 
     @Pattern("[a-z0-9-]+")
     @Override
@@ -43,16 +43,10 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
 
     @Override
     public @NotNull String @Nullable [] additionalExclusions() {
-        return excludedPackages;
+        return Stream.concat(Arrays.stream(fromPrefixes), Arrays.stream(toPrefixes))
+                .map(s -> s.replace('/', '.'))
+                .toArray(String[]::new);
     }
-
-    final String[] fromPrefixes = new String[] {"java/lang/Compiler", "java/lang/SecurityManager"};
-    final String[] toPrefixes = new String[] {
-        "com/gtnewhorizons/retrofuturabootstrap/asm/DummyCompiler",
-        "com/gtnewhorizons/retrofuturabootstrap/SecurityManager"
-    };
-    final byte[][] quickScans;
-    final String[] excludedPackages;
 
     @Override
     public boolean shouldTransformClass(
@@ -64,22 +58,16 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         if (!classNode.isPresent()) {
             return false;
         }
-        final int classVersion;
-        if (classNode.getOriginalMetadata() != null) {
-            classVersion = classNode.getOriginalMetadata().majorVersion;
-        } else {
-            classVersion = 8;
-        }
 
-        if (classVersion >= Opcodes.V21) {
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        if (metadata == null) {
+            return false;
+        }
+        if (metadata.majorVersion >= Opcodes.V21) {
             return false;
         }
 
-        final byte[] original = classNode.getOriginalBytes();
-        if (original == null) {
-            return false;
-        }
-        return ClassHeaderMetadata.hasSubstrings(original, quickScans);
+        return metadata.matchesBytes(deprecatedClassMatcher);
     }
 
     @Override
