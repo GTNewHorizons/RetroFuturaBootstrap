@@ -71,7 +71,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
@@ -79,7 +79,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
             @NotNull ClassNodeHandle classNode) {
         final ClassNode inputNode = classNode.getNode();
         if (inputNode == null) {
-            return;
+            return false;
         }
 
         final ClassNode outputNode = new ClassNode();
@@ -89,7 +89,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
             inputNode.accept(visitor);
         } catch (Exception e) {
             SharedConfig.logWarning("Couldn't remap class " + className, e);
-            return;
+            return false;
         }
 
         // Remap SecurityManager getter/setter
@@ -114,6 +114,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
         }
 
         classNode.setNode(outputNode);
+        return true;
     }
 
     @Override
