@@ -77,16 +77,18 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
-        if (node == null || node.methods == null) {
-            return;
+        boolean transformed = false;
+        if (node == null) {
+            return false;
         }
+
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
                 continue;
@@ -101,6 +103,7 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
                         insn.setOpcode(Opcodes.INVOKESTATIC);
                         insn.owner = REDIRECTION_NAME;
                         insn.desc = "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;";
+                        transformed = true;
                     } else if (insn.owner.equals(CLASS_NAME)
                             && insn.name.equals("getDeclaredFields")
                             && insn.desc.equals(CLASS_GET_DECLARED_FIELDS_DESC)) {
@@ -108,6 +111,7 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
                         insn.setOpcode(Opcodes.INVOKESTATIC);
                         insn.owner = REDIRECTION_NAME;
                         insn.desc = "(Ljava/lang/Class;)[Ljava/lang/reflect/Field;";
+                        transformed = true;
                     } else if (insn.owner.equals(FIELD_NAME)
                             && REDIRECT_FIELD_METHODS.contains(insn.name + insn.desc)) {
                         // add a Field argument at the start
@@ -115,9 +119,12 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
                         insn.setOpcode(Opcodes.INVOKESTATIC);
                         insn.owner = REDIRECTION_NAME;
                         insn.desc = newDesc;
+                        transformed = true;
                     }
                 }
             }
         }
+
+        return transformed;
     }
 }

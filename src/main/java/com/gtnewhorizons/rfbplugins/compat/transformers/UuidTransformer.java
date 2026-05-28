@@ -65,16 +65,18 @@ public class UuidTransformer implements RfbClassTransformer {
     }
 
     @Override
-    public void transformClass(
+    public boolean transformClassIfNeeded(
             @NotNull ExtensibleClassLoader classLoader,
             @NotNull RfbClassTransformer.Context context,
             @Nullable Manifest manifest,
             @NotNull String className,
             @NotNull ClassNodeHandle classNode) {
         final ClassNode node = classNode.getNode();
-        if (node == null || node.methods == null) {
-            return;
+        boolean transformed = false;
+        if (node == null) {
+            return false;
         }
+
         for (MethodNode method : node.methods) {
             if (method.instructions == null) {
                 continue;
@@ -86,9 +88,12 @@ public class UuidTransformer implements RfbClassTransformer {
                             && insn.name.equals("fromString")
                             && insn.desc.equals(UUID_FROM_STRING_DESC)) {
                         insn.owner = REDIRECTION_NAME;
+                        transformed = true;
                     }
                 }
             }
         }
+
+        return transformed;
     }
 }

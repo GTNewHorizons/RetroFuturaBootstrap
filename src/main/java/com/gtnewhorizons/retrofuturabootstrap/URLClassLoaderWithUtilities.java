@@ -57,9 +57,14 @@ public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
             final RfbClassTransformer xformer = handle.transformer();
             try {
                 if (xformer.shouldTransformClass(self, context, manifest, className, nodeHandle)) {
-                    xformer.transformClass(self, context, manifest, className, nodeHandle);
+                    boolean transformed =
+                            xformer.transformClassIfNeeded(self, context, manifest, className, nodeHandle);
 
-                    if (Main.cfgDumpLoadedClassesPerTransformer) {
+                    if (transformed) {
+                        nodeHandle.markDirty();
+                    }
+
+                    if (Main.cfgDumpLoadedClassesPerTransformer && transformed) {
                         final byte[] newBytes = nodeHandle.computeBytes();
                         if (newBytes != null && !Arrays.equals(newBytes, previousBytes)) {
                             Main.dumpClass(
