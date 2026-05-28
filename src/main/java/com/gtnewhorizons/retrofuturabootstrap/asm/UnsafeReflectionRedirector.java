@@ -1,8 +1,16 @@
 package com.gtnewhorizons.retrofuturabootstrap.asm;
 
+import java.lang.invoke.CallSite;
+import java.lang.invoke.ConstantCallSite;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.invoke.SwitchPoint;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import org.jetbrains.annotations.NotNull;
 import sun.misc.Unsafe;
 
 /**
@@ -17,16 +25,15 @@ public class UnsafeReflectionRedirector {
 
     private static final Class<?> fieldClass = Field.class;
     private static final Field fieldModifiers;
-    private static final Set<Field> unlockedFields = Collections.newSetFromMap(new WeakHashMap<>());
+    private static final MethodHandles.Lookup self = MethodHandles.lookup();
     private static final Unsafe unsafe;
 
-    private static synchronized void unlockField(Field f) {
-        unlockedFields.add(f);
-    }
-
-    private static synchronized boolean isFieldUnlocked(Field f) {
-        return unlockedFields.contains(f);
-    }
+    private static final ClassValue<Map<Field, Accessors>> fieldAccessors = new ClassValue<Map<Field, Accessors>>() {
+        @Override
+        protected Map<Field, Accessors> computeValue(@NotNull Class<?> type) {
+            return new ConcurrentHashMap<>();
+        }
+    };
 
     static {
         try {
@@ -37,6 +44,158 @@ public class UnsafeReflectionRedirector {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static CallSite bsm(MethodHandles.Lookup caller, String name, MethodType methodType) throws Exception {
+        MethodType newType = methodType.insertParameterTypes(0, MethodHandles.Lookup.class);
+        MethodHandle target = self.findStatic(UnsafeReflectionRedirector.class, name, newType)
+                .bindTo(caller)
+                .asType(methodType);
+        return new ConstantCallSite(target);
+    }
+
+    private static class Accessors {
+        private volatile Getters getters;
+        private volatile Setters setters;
+
+        MethodHandle getExact(MethodHandles.Lookup caller, Field field) throws Throwable {
+            return ensureGetters(caller, field).exact;
+        }
+
+        MethodHandle getErased(MethodHandles.Lookup caller, Field field) throws Throwable {
+            return ensureGetters(caller, field).erased;
+        }
+
+        MethodHandle setExact(MethodHandles.Lookup caller, Field field) throws Throwable {
+            return ensureSetters(caller, field).exact;
+        }
+
+        MethodHandle setErased(MethodHandles.Lookup caller, Field field) throws Throwable {
+            return ensureSetters(caller, field).erased;
+        }
+
+        void unlock() {
+            Setters local = setters;
+            if (local != null) {
+                local.unlock();
+            }
+        }
+
+        boolean isUnlocked() {
+            Setters local = setters;
+            return local != null && local.isUnlocked();
+        }
+
+        private Getters ensureGetters(MethodHandles.Lookup caller, Field field) throws Throwable {
+            Getters local = getters;
+            if (local != null) {
+                return local;
+            }
+            synchronized (this) {
+                local = getters;
+                if (local == null) {
+                    local = new Getters(caller, field);
+                    getters = local;
+                }
+            }
+            return local;
+        }
+
+        private Setters ensureSetters(MethodHandles.Lookup caller, Field field) throws Throwable {
+            Setters local = setters;
+            if (local != null) {
+                return local;
+            }
+            synchronized (this) {
+                local = setters;
+                if (local == null) {
+                    local = new Setters(caller, field);
+                    setters = local;
+                }
+            }
+            return local;
+        }
+
+        private static class Getters {
+            final MethodHandle exact;
+            final MethodHandle erased;
+
+            Getters(MethodHandles.Lookup caller, Field field) throws IllegalAccessException {
+                Class<?> type = field.getType();
+                MethodHandle getter = caller.unreflectGetter(field);
+                if (Modifier.isStatic(field.getModifiers())) {
+                    // add a dummy first argument for static fields, so the target will be passed in and ignored
+                    getter = MethodHandles.dropArguments(getter, 0, Object.class);
+                }
+                this.exact = getter.asType(MethodType.methodType(type, Object.class));
+                this.erased = getter.asType(MethodType.methodType(Object.class, Object.class));
+            }
+        }
+
+        private static class Setters {
+            final MethodHandle exact;
+            final MethodHandle erased;
+            private final SwitchPoint sp;
+
+            Setters(MethodHandles.Lookup caller, Field field) throws IllegalAccessException, NoSuchMethodException {
+                Class<?> type = field.getType();
+                MethodHandle setter = caller.unreflectSetter(field);
+                if (Modifier.isStatic(field.getModifiers())) {
+                    // add a dummy first argument for static fields, so the target will be passed in and ignored
+                    setter = MethodHandles.dropArguments(setter, 0, Object.class);
+
+                    MethodHandle unsafeSetter = makeUnsafeSetter(field);
+                    sp = new SwitchPoint();
+                    setter = sp.guardWithTest(setter, unsafeSetter);
+                } else {
+                    sp = null;
+                }
+                this.exact = setter.asType(MethodType.methodType(void.class, Object.class, type));
+                this.erased = setter.asType(MethodType.methodType(void.class, Object.class, Object.class));
+            }
+
+            void unlock() {
+                if (sp != null) {
+                    SwitchPoint.invalidateAll(new SwitchPoint[] {sp});
+                }
+            }
+
+            boolean isUnlocked() {
+                return sp != null && sp.hasBeenInvalidated();
+            }
+        }
+    }
+
+    private static MethodHandle makeUnsafeSetter(Field field) throws NoSuchMethodException, IllegalAccessException {
+        if (!Modifier.isStatic(field.getModifiers())) {
+            throw new IllegalArgumentException("Field must be static");
+        }
+        Object base = unsafe.staticFieldBase(field);
+        long off = unsafe.staticFieldOffset(field);
+        Class<?> type = field.getType();
+
+        String name;
+        MethodType shape;
+        if (type.isPrimitive()) {
+            name = "put" + Character.toUpperCase(type.getName().charAt(0))
+                    + type.getName().substring(1) + "Volatile";
+            shape = MethodType.methodType(void.class, Object.class, long.class, type);
+        } else {
+            name = "putObjectVolatile";
+            shape = MethodType.methodType(void.class, Object.class, long.class, Object.class);
+        }
+
+        MethodHandle mh = self.findVirtual(Unsafe.class, name, shape);
+        mh = MethodHandles.insertArguments(mh, 0, unsafe, base, off);
+        mh = MethodHandles.dropArguments(mh, 0, Object.class);
+        return mh.asType(MethodType.methodType(void.class, Object.class, type));
+    }
+
+    private static Accessors getAccessors(Field field) {
+        Map<Field, Accessors> forClass = fieldAccessors.get(field.getDeclaringClass());
+        Accessors a = forClass.get(field);
+        if (a != null) return a;
+        return forClass.computeIfAbsent(field, k -> new Accessors());
     }
 
     /** {@link Class#getDeclaredField(String)} */
@@ -52,7 +211,7 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Class#getDeclaredFields()} */
-    public static Field[] getDeclaredFields(Class<?> klass) throws NoSuchFieldException, SecurityException {
+    public static Field[] getDeclaredFields(Class<?> klass) throws SecurityException {
         if (klass == fieldClass) {
             return new Field[] {fieldModifiers};
         }
@@ -60,111 +219,89 @@ public class UnsafeReflectionRedirector {
     }
 
     /** {@link Field#setInt(Object, int)} */
-    public static void setInt(Field field, Object target, int value)
-            throws IllegalArgumentException, IllegalAccessException {
+    private static void setInt(MethodHandles.Lookup caller, Field field, Object target, int value) throws Throwable {
         if (field == fieldModifiers) {
-            setModifiers(target, value);
+            setModifiers(caller, target, value);
             return;
         }
-        field.setInt(target, value);
+        getAccessors(field).setExact(caller, field).invokeExact(target, value);
     }
 
     /** {@link Field#setShort(Object, short)} */
-    public static void setShort(Field field, Object target, short value)
-            throws IllegalArgumentException, IllegalAccessException {
+    private static void setShort(MethodHandles.Lookup caller, Field field, Object target, short value)
+            throws Throwable {
         if (field == fieldModifiers) {
-            setModifiers(target, value);
+            setModifiers(caller, target, value);
             return;
         }
-        field.setShort(target, value);
+        getAccessors(field).setExact(caller, field).invokeExact(target, (short) value);
     }
 
     /** {@link Field#setByte(Object, byte)} */
-    public static void setByte(Field field, Object target, byte value)
-            throws IllegalArgumentException, IllegalAccessException {
+    private static void setByte(MethodHandles.Lookup caller, Field field, Object target, byte value) throws Throwable {
         if (field == fieldModifiers) {
-            setModifiers(target, value);
+            setModifiers(caller, target, value);
             return;
         }
-        field.setByte(target, value);
+        getAccessors(field).setExact(caller, field).invokeExact(target, (byte) value);
     }
 
     /** {@link Field#setChar(Object, char)} */
-    public static void setChar(Field field, Object target, char value)
-            throws IllegalArgumentException, IllegalAccessException {
+    private static void setChar(MethodHandles.Lookup caller, Field field, Object target, char value) throws Throwable {
         if (field == fieldModifiers) {
-            setModifiers(target, value);
+            setModifiers(caller, target, value);
             return;
         }
-        field.setChar(target, value);
+        getAccessors(field).setExact(caller, field).invokeExact(target, (char) value);
     }
 
     /** {@link Field#getInt(Object)} */
-    public static int getInt(Field field, Object target) throws IllegalArgumentException, IllegalAccessException {
+    private static int getInt(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
-            return getModifiers(target);
+            return getModifiers(caller, target);
         }
-        return field.getInt(target);
+        return (int) getAccessors(field).getExact(caller, field).invokeExact(target);
     }
 
     /** {@link Field#getLong(Object)} */
-    public static long getLong(Field field, Object target) throws IllegalArgumentException, IllegalAccessException {
+    private static long getLong(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
-            return getModifiers(target);
+            return getModifiers(caller, target);
         }
-        return field.getLong(target);
+        return (long) getAccessors(field).getExact(caller, field).invokeExact(target);
     }
 
     /** {@link Field#getFloat(Object)} */
-    public static float getFloat(Field field, Object target) throws IllegalArgumentException, IllegalAccessException {
+    private static float getFloat(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
-            return getModifiers(target);
+            return getModifiers(caller, target);
         }
-        return field.getFloat(target);
+        return (float) getAccessors(field).getExact(caller, field).invokeExact(target);
     }
 
     /** {@link Field#getDouble(Object)} */
-    public static double getDouble(Field field, Object target) throws IllegalArgumentException, IllegalAccessException {
+    private static double getDouble(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
-            return getModifiers(target);
+            return getModifiers(caller, target);
         }
-        return field.getDouble(target);
+        return (double) getAccessors(field).getExact(caller, field).invokeExact(target);
     }
 
     /** {@link Field#set(Object, Object)} */
-    public static void set(Field field, Object target, Object value)
-            throws IllegalArgumentException, IllegalAccessException {
+    private static void set(MethodHandles.Lookup caller, Field field, Object target, Object value) throws Throwable {
         if (field == fieldModifiers && canCoerceToInt(value)) {
-            setModifiers(target, coerceToInt(value));
+            setModifiers(caller, target, coerceToInt(value));
             return;
         }
-
-        if (isFieldUnlocked(field)) {
-            // Only static final fields are redirected to Unsafe.
-            if (!Modifier.isStatic(field.getModifiers())) {
-                throw new IllegalStateException("unsafe redirect of non-static field set");
-            }
-            if (!field.getType().isAssignableFrom(value.getClass())) {
-                throw new IllegalArgumentException(
-                        "Field " + field.getType() + " not assignable from " + value.getClass());
-            }
-            final long staticOffset = unsafe.staticFieldOffset(field);
-            final Object staticObject = unsafe.staticFieldBase(field);
-            unsafe.putObjectVolatile(staticObject, staticOffset, value);
-        } else if (target instanceof Dummy
-                && value instanceof Field) { // Do nothing if trying to cast Field to Dummy$modifiers
-            return;
-        } else {
-            field.set(target, value);
-        }
+        getAccessors(field).setErased(caller, field).invokeExact(target, value);
     }
 
     /** {@link Field#get(Object)} */
-    public static Object get(Field field, Object target) throws IllegalArgumentException, IllegalAccessException {
+    private static Object get(MethodHandles.Lookup caller, Field field, Object target) throws Throwable {
         if (field == fieldModifiers) {
-            return getModifiers(target);
+            return getModifiers(caller, target);
         }
-        return field.get(target);
+        return getAccessors(field).getErased(caller, field).invokeExact(target);
     }
 
     private static int coerceToInt(Object obj) {
@@ -181,23 +318,22 @@ public class UnsafeReflectionRedirector {
         return obj instanceof Byte || obj instanceof Short || obj instanceof Integer || obj instanceof Character;
     }
 
-    private static void setModifiers(Object target, int value) {
+    private static void setModifiers(MethodHandles.Lookup caller, Object target, int value) throws Throwable {
         final Field targetF = (Field) target;
         final int actualModifiers = targetF.getModifiers();
         if (Modifier.isStatic(actualModifiers) && Modifier.isFinal(actualModifiers)) {
             if ((value & Modifier.FINAL) == 0) {
-                unlockField(targetF);
+                getAccessors(targetF).unlock();
             }
         } else {
             targetF.setAccessible(true);
         }
     }
 
-    private static int getModifiers(Object target) {
+    private static int getModifiers(MethodHandles.Lookup caller, Object target) throws Throwable {
         final Field targetF = (Field) target;
-        final boolean isUnlocked = isFieldUnlocked(targetF);
         int modifiers = targetF.getModifiers();
-        if (isUnlocked) {
+        if (getAccessors(targetF).isUnlocked()) {
             modifiers &= ~Modifier.FINAL;
         }
         return modifiers;
