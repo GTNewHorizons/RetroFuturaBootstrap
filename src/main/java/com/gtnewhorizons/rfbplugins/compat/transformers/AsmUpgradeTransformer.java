@@ -1,12 +1,12 @@
 package com.gtnewhorizons.rfbplugins.compat.transformers;
 
+import com.gtnewhorizons.retrofuturabootstrap.api.BytePatternMatcher;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassNodeHandle;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UpgradedTreeNodes;
 import com.gtnewhorizons.retrofuturabootstrap.asm.UpgradedVisitors;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.jar.Manifest;
@@ -26,9 +26,8 @@ import org.objectweb.asm.tree.TypeInsnNode;
  * This allows those transformers to work on newer classes.
  */
 public class AsmUpgradeTransformer implements RfbClassTransformer {
-    private static final byte[] quickScan = "org/objectweb/asm".getBytes(StandardCharsets.UTF_8);
-
     private final Map<String, String> upgradeMap = new HashMap<>();
+    private final BytePatternMatcher asmClassMatcher;
 
     public AsmUpgradeTransformer() {
         for (Class<?> visitor : UpgradedVisitors.ALL_VISITORS) {
@@ -37,6 +36,9 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
         for (Class<?> visitor : UpgradedTreeNodes.ALL_NODES) {
             upgradeMap.put(Type.getInternalName(visitor.getSuperclass()), Type.getInternalName(visitor));
         }
+
+        asmClassMatcher =
+                new BytePatternMatcher(upgradeMap.keySet().toArray(new String[0]), BytePatternMatcher.Mode.Equals);
     }
 
     @Pattern("[a-z0-9-]+")
@@ -56,8 +58,8 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
             return false;
         }
 
-        final byte[] original = classNode.getOriginalBytes();
-        return ClassHeaderMetadata.hasSubstring(original, quickScan);
+        final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
+        return metadata != null && metadata.matchesBytes(classNode.getOriginalBytes(), asmClassMatcher);
     }
 
     @Override
