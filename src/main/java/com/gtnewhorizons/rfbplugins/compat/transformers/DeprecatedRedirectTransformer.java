@@ -67,7 +67,7 @@ public class DeprecatedRedirectTransformer extends Remapper implements RfbClassT
             return false;
         }
 
-        return metadata.matchesBytes(deprecatedClassMatcher);
+        return metadata.matchesBytes(classNode.getOriginalBytes(), deprecatedClassMatcher);
     }
 
     @Override

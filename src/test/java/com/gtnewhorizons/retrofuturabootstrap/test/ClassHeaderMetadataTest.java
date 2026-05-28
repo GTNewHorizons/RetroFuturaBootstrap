@@ -19,12 +19,12 @@ public class ClassHeaderMetadataTest {
         byte[] classBytes = stubClassBytes("org/lwjgl/opengl/GL11");
         ClassHeaderMetadata metadata = new ClassHeaderMetadata(classBytes);
 
-        Assertions.assertFalse(metadata.matchesBytes(matcher("org/whatever", Contains)));
-        Assertions.assertTrue(metadata.matchesBytes(matcher("org", Contains)));
-        Assertions.assertTrue(metadata.matchesBytes(matcher("lwjgl", Contains)));
-        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/", Contains)));
-        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11", Contains)));
-        Assertions.assertFalse(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11/meh", Contains)));
+        Assertions.assertFalse(metadata.matchesBytes(classBytes, matcher("org/whatever", Contains)));
+        Assertions.assertTrue(metadata.matchesBytes(classBytes, matcher("org", Contains)));
+        Assertions.assertTrue(metadata.matchesBytes(classBytes, matcher("lwjgl", Contains)));
+        Assertions.assertTrue(metadata.matchesBytes(classBytes, matcher("org/lwjgl/", Contains)));
+        Assertions.assertTrue(metadata.matchesBytes(classBytes, matcher("org/lwjgl/opengl/GL11", Contains)));
+        Assertions.assertFalse(metadata.matchesBytes(classBytes, matcher("org/lwjgl/opengl/GL11/meh", Contains)));
     }
 
     @Test
@@ -32,12 +32,12 @@ public class ClassHeaderMetadataTest {
         byte[] classBytes = stubClassBytes("org/lwjgl/opengl/GL11");
         ClassHeaderMetadata metadata = new ClassHeaderMetadata(classBytes);
 
-        Assertions.assertFalse(metadata.matchesBytes(matcher("org/whatever", Equals)));
-        Assertions.assertFalse(metadata.matchesBytes(matcher("org", Equals)));
-        Assertions.assertFalse(metadata.matchesBytes(matcher("lwjgl", Equals)));
-        Assertions.assertFalse(metadata.matchesBytes(matcher("org/lwjgl/", Equals)));
-        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11", Equals)));
-        Assertions.assertFalse(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11/meh", Equals)));
+        Assertions.assertFalse(metadata.matchesBytes(classBytes, matcher("org/whatever", Equals)));
+        Assertions.assertFalse(metadata.matchesBytes(classBytes, matcher("org", Equals)));
+        Assertions.assertFalse(metadata.matchesBytes(classBytes, matcher("lwjgl", Equals)));
+        Assertions.assertFalse(metadata.matchesBytes(classBytes, matcher("org/lwjgl/", Equals)));
+        Assertions.assertTrue(metadata.matchesBytes(classBytes, matcher("org/lwjgl/opengl/GL11", Equals)));
+        Assertions.assertFalse(metadata.matchesBytes(classBytes, matcher("org/lwjgl/opengl/GL11/meh", Equals)));
     }
 
     @Test
@@ -45,12 +45,12 @@ public class ClassHeaderMetadataTest {
         byte[] classBytes = stubClassBytes("org/lwjgl/opengl/GL11");
         ClassHeaderMetadata metadata = new ClassHeaderMetadata(classBytes);
 
-        Assertions.assertFalse(metadata.matchesBytes(matcher("org/whatever", StartsWith)));
-        Assertions.assertTrue(metadata.matchesBytes(matcher("org", StartsWith)));
-        Assertions.assertFalse(metadata.matchesBytes(matcher("lwjgl", StartsWith)));
-        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/", StartsWith)));
-        Assertions.assertTrue(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11", StartsWith)));
-        Assertions.assertFalse(metadata.matchesBytes(matcher("org/lwjgl/opengl/GL11/meh", StartsWith)));
+        Assertions.assertFalse(metadata.matchesBytes(classBytes, matcher("org/whatever", StartsWith)));
+        Assertions.assertTrue(metadata.matchesBytes(classBytes, matcher("org", StartsWith)));
+        Assertions.assertFalse(metadata.matchesBytes(classBytes, matcher("lwjgl", StartsWith)));
+        Assertions.assertTrue(metadata.matchesBytes(classBytes, matcher("org/lwjgl/", StartsWith)));
+        Assertions.assertTrue(metadata.matchesBytes(classBytes, matcher("org/lwjgl/opengl/GL11", StartsWith)));
+        Assertions.assertFalse(metadata.matchesBytes(classBytes, matcher("org/lwjgl/opengl/GL11/meh", StartsWith)));
     }
 
     private static BytePatternMatcher matcher(String str, BytePatternMatcher.Mode mode) {

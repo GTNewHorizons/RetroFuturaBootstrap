@@ -3,11 +3,11 @@ package com.gtnewhorizons.retrofuturabootstrap.api;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-public class BytePatternMatcher {
-    final Mode mode;
+public final class BytePatternMatcher {
+    private final Mode mode;
     // first byte -> matched patterns
-    final byte[][][] byFirst = new byte[256][][];
-    int minPatternLen = Integer.MAX_VALUE;
+    private final byte[][][] byFirst = new byte[256][][];
+    private int minPatternLen = Integer.MAX_VALUE;
 
     public enum Mode {
         /** Checks if the constant pool entry contains a pattern */

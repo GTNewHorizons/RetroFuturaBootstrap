@@ -61,7 +61,7 @@ public class UuidTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return metadata.matchesBytes(fromStringMethodMatcher);
+        return metadata.matchesBytes(classNode.getOriginalBytes(), fromStringMethodMatcher);
     }
 
     @Override

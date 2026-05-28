@@ -53,7 +53,7 @@ public class SafeClassWriterTransformer implements RfbClassTransformer {
         }
 
         final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
-        return metadata != null && metadata.matchesBytes(classWriterMatcher);
+        return metadata != null && metadata.matchesBytes(classNode.getOriginalBytes(), classWriterMatcher);
     }
 
     @Override

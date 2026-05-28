@@ -17,10 +17,8 @@ import org.objectweb.asm.Opcodes;
  */
 public final class ClassHeaderMetadata implements FastClassAccessor {
 
-    public final byte[] classBytes;
     public final int minorVersion;
     public final int majorVersion;
-
     public final int constantPoolEntryCount;
     /** Byte offsets of where each constant pool entry starts (index of the tag byte), zero-indexed! */
     public final int @NotNull [] constantPoolEntryOffsets;
@@ -50,7 +48,6 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
         if (!isValidClass(bytes)) {
             throw new IllegalArgumentException("Invalid class detected");
         }
-        this.classBytes = bytes;
         this.minorVersion = u16(bytes, Offsets.minorVersionU16);
         this.majorVersion = u16(bytes, Offsets.majorVersionU16);
         this.constantPoolEntryCount = u16(bytes, Offsets.constantPoolCountU16);
@@ -322,7 +319,7 @@ public final class ClassHeaderMetadata implements FastClassAccessor {
      * @param matcher A configured byte matcher with patterns to search for.
      * @return {@code true} if there is a match for at least one constant pool entry.
      */
-    public boolean matchesBytes(final BytePatternMatcher matcher) {
+    public boolean matchesBytes(final byte[] classBytes, final BytePatternMatcher matcher) {
         for (final int offset : constantPoolUtf8EntryOffsets) {
             // first byte is entry type, second and third bytes are length
             final int length = u16(classBytes, offset + 1);

@@ -73,7 +73,7 @@ public class UnsafeReflectionTransformer implements RfbClassTransformer {
         }
 
         final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
-        return metadata != null && metadata.matchesBytes(reflectionMatcher);
+        return metadata != null && metadata.matchesBytes(classNode.getOriginalBytes(), reflectionMatcher);
     }
 
     @Override

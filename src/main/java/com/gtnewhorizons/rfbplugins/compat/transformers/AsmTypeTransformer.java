@@ -56,7 +56,7 @@ public class AsmTypeTransformer implements RfbClassTransformer {
             return false;
         }
 
-        return metadata.matchesBytes(methodDescMatcher);
+        return metadata.matchesBytes(classNode.getOriginalBytes(), methodDescMatcher);
     }
 
     @Override

@@ -59,7 +59,7 @@ public class AsmUpgradeTransformer implements RfbClassTransformer {
         }
 
         final ClassHeaderMetadata metadata = classNode.getOriginalMetadata();
-        return metadata != null && metadata.matchesBytes(asmClassMatcher);
+        return metadata != null && metadata.matchesBytes(classNode.getOriginalBytes(), asmClassMatcher);
     }
 
     @Override
