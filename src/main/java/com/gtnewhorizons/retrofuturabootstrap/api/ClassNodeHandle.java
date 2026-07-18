@@ -39,7 +39,7 @@ public final class ClassNodeHandle {
         }
         this.originalMetadata = originalMetadata;
         this.accessor = originalMetadata;
-        this.readerOptions = 0;
+        this.readerOptions = readerOptions;
     }
 
     /** Gets the original pre-transformer-phase bytes of the class. */
