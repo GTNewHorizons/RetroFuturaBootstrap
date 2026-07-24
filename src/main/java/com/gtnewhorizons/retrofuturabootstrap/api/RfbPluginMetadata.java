@@ -38,6 +38,9 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
     private final @NotNull String className;
     private @Nullable RfbPlugin instance;
 
+    /** Only for post processing, not considered part of equality */
+    private final @NotNull Properties properties;
+
     public RfbPluginMetadata(
             @NotNull URL classpathEntry,
             @NotNull URI source,
@@ -66,11 +69,13 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
         this.loadAfter = loadAfter == null ? new String[0] : loadAfter;
         this.loadRequires = loadRequires == null ? new String[0] : loadRequires;
         this.pinLast = pinLast;
+        this.properties = new Properties();
     }
 
     public RfbPluginMetadata(@NotNull URL classpathEntry, @NotNull URI source, @NotNull String id, Properties props) {
         this.classpathEntry = classpathEntry;
         this.source = Objects.requireNonNull(source);
+        this.properties = Objects.requireNonNull(props);
         Objects.requireNonNull(id);
 
         if (!ID_VALIDATOR.matcher(id).matches()) {
@@ -264,6 +269,10 @@ public final class RfbPluginMetadata implements Comparable<RfbPluginMetadata> {
     /** if the original loadAfter property contained a "*" */
     public boolean pinLast() {
         return pinLast;
+    }
+
+    public @NotNull Properties properties() {
+        return properties;
     }
 
     @Override
