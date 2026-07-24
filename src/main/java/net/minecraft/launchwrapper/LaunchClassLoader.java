@@ -22,11 +22,11 @@ import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.jar.Manifest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,8 +46,8 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     /** RFB: Reference to the platform class loader that can load JRE/JDK classes */
     private static final ClassLoader rfb$platformLoader = getPlatformClassLoader();
 
-    /** An ArrayList of all class transformers used, mutable, often modified via reflection */
-    private List<IClassTransformer> transformers = new ArrayList<>(2);
+    /** A CopyOnWriteArrayList of all class transformers used, mutable, often modified via reflection */
+    private List<IClassTransformer> transformers = new CopyOnWriteArrayList<>();
     /** A ConcurrentHashMap cache of all classes loaded via this loader */
     private Map<String, Class<?>> cachedClasses = new ConcurrentHashMap<>();
     /**
@@ -60,12 +60,12 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
      * A HashSet of all class prefixes (e.g. "org.lwjgl.") to redirect to the parent classloader, often modified via
      * reflection
      */
-    private Set<String> classLoaderExceptions = new HashSet<>();
+    private Set<String> classLoaderExceptions = ConcurrentHashMap.newKeySet();
     /**
      * A HashSet of all class prefixes (e.g. "org.objectweb.asm.") to NOT run class transformers on, often modified via
      * reflection
      */
-    private Set<String> transformerExceptions = new HashSet<>();
+    private Set<String> transformerExceptions = ConcurrentHashMap.newKeySet();
     /**
      * An unused cache of package manifests, the field with a non-null CHM value needs to stay here due to reflective
      * usage
