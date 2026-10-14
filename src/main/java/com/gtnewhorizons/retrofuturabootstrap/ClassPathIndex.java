@@ -23,6 +23,9 @@ import java.util.zip.ZipFile;
  * <p>
  * The answer is the same as {@link java.net.URLClassLoader#findResource(String)} returns, but much faster
  * (O(1) instead of O(n)).
+ * <p>
+ * Thread-safe: the class preloader's worker looks up class files without holding the loader's lock, while other
+ * threads look up classes and add classpath entries.
  */
 public final class ClassPathIndex {
     /** Returned by {@link #lookup} when the caller has to use the regular, linear lookup. */
@@ -61,7 +64,7 @@ public final class ClassPathIndex {
     }
 
     /** Appends a classpath entry, like {@link java.net.URLClassLoader#addURL(URL)}. Duplicates are ignored. */
-    public void add(URL url) {
+    public synchronized void add(URL url) {
         if (url == null || !knownUrls.add(url.toExternalForm())) {
             return;
         }
@@ -155,7 +158,7 @@ public final class ClassPathIndex {
      * @return the URL {@link java.net.URLClassLoader#findResource(String)} would return, null if it would return null,
      *     or {@link #UNKNOWN}
      */
-    public Object lookup(String path) {
+    public synchronized Object lookup(String path) {
         final int[] positions = packages.getOrDefault(path.substring(0, path.lastIndexOf('/') + 1), NO_POSITIONS);
         for (int position : positions) {
             if (position >= barrier) {
