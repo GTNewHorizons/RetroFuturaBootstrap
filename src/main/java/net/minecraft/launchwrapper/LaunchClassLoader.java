@@ -719,12 +719,20 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
 
     private volatile java.lang.reflect.Field rfb$mixinRegisteredConfigs;
     private volatile Method rfb$mixinUnvisitedCount;
+    private volatile Method rfb$mixinCurrentEnvironment;
+    private volatile Method rfb$mixinGetPhase;
+    private volatile java.lang.reflect.Field rfb$mixinProxyTransformer;
+    private volatile java.lang.reflect.Field rfb$mixinProcessor;
+    private volatile java.lang.reflect.Field rfb$mixinPendingConfigs;
     private volatile boolean rfb$mixinLookupDone;
 
     /**
-     * RFB: Describes the class transformer setup: transformer counts, and the number of mixin configs registered and
-     * not processed yet. Prepared classes are only used while it stays the same. Exclusions aren't part of it: they
-     * only matter for the classes they cover, which is checked per class (rfb$PreparedClass.runTransformers).
+     * RFB: Describes the class transformer setup: transformer counts, the number of mixin configs registered and not
+     * visited yet, the number selected but not prepared yet (Mixin prepares them outside the transformer lock only
+     * before preloading can start; GTNHMixins' late mixins are selected and prepared by separate calls), and the
+     * Mixin environment phase (which decides which mixins apply). Prepared classes are only used while it stays the
+     * same. Exclusions aren't part of it: they only matter for the classes they cover, which is checked per class
+     * (rfb$PreparedClass.runTransformers).
      */
     private String rfb$signature() {
         final StringBuilder sb = new StringBuilder();
@@ -746,6 +754,24 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                         final java.lang.reflect.Field registered = mixins.getDeclaredField("registeredConfigs");
                         registered.setAccessible(true);
                         rfb$mixinUnvisitedCount = mixins.getMethod("getUnvisitedCount");
+                        final Class<?> environment = Class.forName(
+                                "org.spongepowered.asm.mixin.MixinEnvironment",
+                                false,
+                                xformer.getClass().getClassLoader());
+                        rfb$mixinCurrentEnvironment = environment.getMethod("getCurrentEnvironment");
+                        rfb$mixinGetPhase = environment.getMethod("getPhase");
+                        final java.lang.reflect.Field proxyTransformer =
+                                xformer.getClass().getDeclaredField("transformer");
+                        proxyTransformer.setAccessible(true);
+                        final java.lang.reflect.Field processor =
+                                proxyTransformer.getType().getDeclaredField("processor");
+                        processor.setAccessible(true);
+                        final java.lang.reflect.Field pending =
+                                processor.getType().getDeclaredField("pendingConfigs");
+                        pending.setAccessible(true);
+                        rfb$mixinProxyTransformer = proxyTransformer;
+                        rfb$mixinProcessor = processor;
+                        rfb$mixinPendingConfigs = pending;
                         rfb$mixinRegisteredConfigs = registered;
                     } catch (Throwable t) {
                         LogWrapper.rfb$logger.warn("Class preloader: can't count mixin configs", t);
@@ -761,7 +787,17 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             } else {
                 sb.append(((Collection<?>) rfb$mixinRegisteredConfigs.get(null)).size())
                         .append(" unvisited:")
-                        .append(rfb$mixinUnvisitedCount.invoke(null));
+                        .append(rfb$mixinUnvisitedCount.invoke(null))
+                        .append(" pending:");
+                final Object mixinTransformer = rfb$mixinProxyTransformer.get(null);
+                sb.append(
+                                mixinTransformer == null
+                                        ? 0
+                                        : ((Collection<?>) rfb$mixinPendingConfigs.get(
+                                                        rfb$mixinProcessor.get(mixinTransformer)))
+                                                .size())
+                        .append(" phase:")
+                        .append(rfb$mixinGetPhase.invoke(rfb$mixinCurrentEnvironment.invoke(null)));
             }
         } catch (Throwable t) {
             sb.append('?');
