@@ -46,13 +46,17 @@ import org.jetbrains.annotations.NotNull;
 public final class ClassPreloader<P extends ClassPreloader.Prepared> {
     public interface Prepared {
         String key();
+
         byte[] bytes();
     }
 
     public interface Target<P> {
         P prepare(String name);
+
         String signature();
+
         boolean tryLockTransforms();
+
         void unlockTransforms();
     }
 
