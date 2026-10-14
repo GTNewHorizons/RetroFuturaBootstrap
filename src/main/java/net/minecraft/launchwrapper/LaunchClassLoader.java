@@ -1,5 +1,6 @@
 package net.minecraft.launchwrapper;
 
+import com.gtnewhorizons.retrofuturabootstrap.ClassPathIndex;
 import com.gtnewhorizons.retrofuturabootstrap.Main;
 import com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.URLClassLoaderWithUtilities;
@@ -383,7 +384,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
      */
     private URLConnection findCodeSourceConnectionFor(final String name) {
         try {
-            final URL url = findResource(name);
+            final URL url = rfb$findClassFile(name);
             if (url == null) {
                 return null;
             }
@@ -392,6 +393,15 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             LogWrapper.rfb$logger.debug("Couldn't findCodeSourceConnectionFor {}: {}", name, e.getMessage());
             return null;
         }
+    }
+
+    /** RFB: The classpath as of construction; addURL/addSilentURL append to it */
+    private final ClassPathIndex rfb$classPathIndex = new ClassPathIndex(getURLs());
+
+    /** RFB: findResource for class files, answered from the classpath index where it can */
+    private URL rfb$findClassFile(final String path) {
+        final Object indexed = rfb$classPathIndex.lookup(path);
+        return indexed == ClassPathIndex.UNKNOWN ? findResource(path) : (URL) indexed;
     }
 
     /**
@@ -465,6 +475,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     public void addURL(final URL url) {
         this.negativeResourceCache.clear();
         super.addURL(url);
+        rfb$classPathIndex.add(url);
         sources.add(url);
     }
 
@@ -472,6 +483,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     public void addSilentURL(@Nullable URL url) {
         this.negativeResourceCache.clear();
         super.addURL(url);
+        rfb$classPathIndex.add(url);
     }
 
     /** Returns the saved classpath list */
@@ -604,7 +616,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
 
     private byte[] rfb$getUncachedClassBytes(String name) throws IOException {
         final String classPath = name.replace('.', '/') + ".class";
-        final URL resourceUrl = findResource(classPath);
+        final URL resourceUrl = rfb$findClassFile(classPath);
         URLConnection conn = resourceUrl == null ? null : resourceUrl.openConnection();
         if (conn == null) {
             if (rfb$platformLoader != null) {
