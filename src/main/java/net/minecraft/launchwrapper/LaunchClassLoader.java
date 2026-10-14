@@ -360,8 +360,10 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         rfb$transformDepth = 1;
     }
 
-    /** For the preload worker, which holds no lock: takes the transformer lock if it's free. */
     private boolean rfb$tryLockTransforms() {
+        if (rfb$waiters > 0) {
+            return false;
+        }
         if (rfb$transformOwner.compareAndSet(null, Thread.currentThread())) {
             rfb$transformDepth = 1;
             return true;
