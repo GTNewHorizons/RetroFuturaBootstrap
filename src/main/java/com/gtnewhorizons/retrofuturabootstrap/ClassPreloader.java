@@ -32,35 +32,23 @@ import org.jetbrains.annotations.NotNull;
  * On the first launch, and after the mods, config or Java changed, it only records the order. Rules that keep the
  * result identical to normal loading:
  * <ul>
- *     <li>All transformers, on every thread, run while holding the loader's transformer lock, so they never run on two
- *     threads at once (as before). The worker holds only that lock while preparing, not the loader's own lock, so
- *     other threads can meanwhile define classes that were prepared already. See LaunchClassLoader for the protocol
- *     that keeps the two locks from deadlocking.</li>
- *     <li>The worker only starts once the transformer setup ({@link Target#signature()}: transformers, registered and
- *     not yet processed mixin configs) equals the setup at the end of the previous launch. Preparing a class can load
- *     other classes, and a class loaded before all (late) mixin configs are registered can't receive their mixins.</li>
- *     <li>Some transformers depend on state set up later (e.g. AE2's integration stripping, set in AE2's PreInit). So
- *     prepared bytes are only used if they're identical (length and CRC32) to the bytes the class was defined with in
- *     the previous launch; otherwise the class is transformed as usual when it's loaded.</li>
- *     <li>That comparison is only meaningful when the inputs are the same: the worker doesn't run if the mods or
- *     config folder (path, size, modification time) or the Java version changed since the previous launch ended.</li>
- *     <li>The worker stays at most {@code rfb.preloadLookahead} classes ahead.</li>
+ *     <li>Transformers prepare with a lock, so they don't intercept eachother.
+ *     <li>Only starts when the signature equals the previous launch.
+ *     <li>Transformers like AE2's integration depend on state setup later, so prepared bytes are used ONLY if they are
+ *     identical to previous launch.
+ *     <li>If the Java version, configs or mods changed, the worker does not run (obviously).
  * </ul>
  */
 public final class ClassPreloader<P extends ClassPreloader.Prepared> {
     public interface Prepared {
         String key();
-
         byte[] bytes();
     }
 
     public interface Target<P> {
         P prepare(String name);
-
         String signature();
-
         boolean tryLockTransforms();
-
         void unlockTransforms();
     }
 

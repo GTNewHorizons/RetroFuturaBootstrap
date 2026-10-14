@@ -320,6 +320,9 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 if (owner == me) {
                     return RFB_REENTRANT;
                 }
+                if (rfb$transformOwner.get() == me) {
+                    return RFB_REENTRANT;
+                }
                 interrupted |= rfb$waitOnLoader();
                 final Class<?> defined = cachedClasses.get(name);
                 if (defined != null) {
@@ -838,6 +841,65 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
      * </ol>
      */
     private byte[] runTransformers(final String name, final String transformedName, byte[] basicClass) {
+        if (rfb$transformOwner.get() == Thread.currentThread()) {
+            return rfb$runTransformers(name, transformedName, basicClass);
+        }
+        // some mods call this private method by reflection
+        rfb$lockTransformsExternal();
+        try {
+            return rfb$runTransformers(name, transformedName, basicClass);
+        } finally {
+            rfb$unlockTransforms(rfb$preloader);
+        }
+    }
+
+    private void rfb$lockTransformsExternal() {
+        synchronized (this) {
+            rfb$lockTransformsWaiting();
+        }
+    }
+
+    private static final Map<String, Method> rfb$lockedMethods = new ConcurrentHashMap<>();
+
+    /**
+     * RFB: Replaces the bodies of some Mixin methods (see MixinTransformLockTransformer) that run the LaunchClassLoader
+     * transformers or change the mixin configs that transforming a class reads, possibly outside any class load. They
+     * run holding the transformer lock, so they never run while the preload worker transforms a class.
+     * Calls the original method, renamed to {@code name}, on {@code self}.
+     */
+    public static Object rfb$invokeLocked(final Object self, final String name, final Object[] args) throws Throwable {
+        final String key = self.getClass().getName() + '#' + name;
+        Method original = rfb$lockedMethods.get(key);
+        if (original == null) {
+            for (Method m : self.getClass().getDeclaredMethods()) {
+                if (m.getName().equals(name)) {
+                    m.setAccessible(true);
+                    original = m;
+                    break;
+                }
+            }
+            if (original == null) {
+                throw new IllegalStateException(name + " not found in " + self.getClass());
+            }
+            rfb$lockedMethods.put(key, original);
+        }
+        final LaunchClassLoader lcl = Launch.classLoader;
+        final boolean lock = lcl != null && lcl.rfb$transformOwner.get() != Thread.currentThread();
+        if (lock) {
+            lcl.rfb$lockTransformsExternal();
+        }
+        try {
+            return original.invoke(self, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        } finally {
+            if (lock) {
+                lcl.rfb$unlockTransforms(lcl.rfb$preloader);
+            }
+        }
+    }
+
+    private byte[] rfb$runTransformers(final String name, final String transformedName, byte[] basicClass) {
         int xformerIndex = 1;
         for (IClassTransformer xformer : transformers) {
             try {
