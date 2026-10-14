@@ -1,5 +1,7 @@
 package net.minecraft.launchwrapper;
 
+import com.gtnewhorizons.retrofuturabootstrap.ClassPathIndex;
+import com.gtnewhorizons.retrofuturabootstrap.ClassPreloader;
 import com.gtnewhorizons.retrofuturabootstrap.Main;
 import com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.URLClassLoaderWithUtilities;
@@ -13,6 +15,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -21,9 +24,11 @@ import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -234,19 +239,314 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 break;
             }
         }
-        final String transformedName = runTransformers ? transformName(name) : name;
-        {
-            Class<?> transformedClass = cachedClasses.get(transformedName);
-            if (transformedClass != null) {
-                return transformedClass;
+        final ClassPreloader<rfb$PreparedClass> preloader = rfb$preloader;
+        if (!Thread.holdsLock(this)) {
+            synchronized (this) {
+                return findClass(name);
             }
         }
+        if (preloader.isWorkerThread()) {
+            return rfb$findClassOnWorker(preloader, name, runTransformers);
+        }
+        return rfb$findClassConcurrent(preloader, name, runTransformers);
+    }
+
+    // ---- RFB: class preloading ----
+    //
+    // Locks: this loader's monitor M and the transformer lock T held by whichever thread runs transformers.
+    // The preload worker takes T without M, and M only for class loads its transformers trigger. Loading threads hold
+    // M and take T only for classes that weren't prepared; they wait for T (and for other threads' in-progress loads
+    // of the same class) with M.wait(), releasing M, so the worker never waits for M while they wait for T.
+
+    private static final Object RFB_CLAIMED = new Object();
+    private static final Object RFB_REENTRANT = new Object();
+    private final Map<String, Thread> rfb$inFlight = new java.util.HashMap<>();
+    private volatile int rfb$waiters;
+
+    private final java.util.concurrent.atomic.AtomicReference<Thread> rfb$transformOwner =
+            new java.util.concurrent.atomic.AtomicReference<>();
+    /** Only accessed by the thread owning the transformer lock. */
+    private int rfb$transformDepth;
+
+    /** A loading thread (holding this loader's lock), a class that isn't loaded yet. */
+    private Class<?> rfb$findClassConcurrent(
+            final ClassPreloader<rfb$PreparedClass> preloader, final String name, final boolean runTransformers)
+            throws ClassNotFoundException {
+        final Object claim = rfb$claim(name);
+        if (claim instanceof Class) {
+            return (Class<?>) claim;
+        }
+        try {
+            rfb$PreparedClass prepared = preloader.take(name);
+            if (prepared != null && prepared.runTransformers != runTransformers) {
+                prepared = null; // a transformer exclusion was added for this class since it was prepared
+            }
+            if (prepared != null) {
+                final Class<?> defined = cachedClasses.get(prepared.transformedName);
+                return defined != null ? defined : rfb$define(prepared);
+            }
+            rfb$lockTransformsWaiting();
+            try {
+                final String transformedName = runTransformers ? transformName(name) : name;
+                final Class<?> transformedClass = cachedClasses.get(transformedName);
+                if (transformedClass != null) {
+                    return transformedClass;
+                }
+                return rfb$define(Objects.requireNonNull(rfb$prepare(name, runTransformers, transformedName, false)));
+            } finally {
+                rfb$unlockTransforms(preloader);
+            }
+        } finally {
+            if (claim == RFB_CLAIMED) {
+                rfb$inFlight.remove(name);
+                if (rfb$waiters > 0) {
+                    notifyAll();
+                }
+            }
+        }
+    }
+
+    /** Waits (releasing this loader's lock) while another thread loads the same class. */
+    private Object rfb$claim(final String name) {
+        final Thread me = Thread.currentThread();
+        boolean interrupted = false;
+        try {
+            while (true) {
+                final Thread owner = rfb$inFlight.get(name);
+                if (owner == null) {
+                    rfb$inFlight.put(name, me);
+                    return RFB_CLAIMED;
+                }
+                if (owner == me) {
+                    return RFB_REENTRANT;
+                }
+                if (rfb$transformOwner.get() == me) {
+                    return RFB_REENTRANT;
+                }
+                interrupted |= rfb$waitOnLoader();
+                final Class<?> defined = cachedClasses.get(name);
+                if (defined != null) {
+                    return defined;
+                }
+            }
+        } finally {
+            if (interrupted) {
+                me.interrupt();
+            }
+        }
+    }
+
+    /** Takes the transformer lock, waiting (releasing this loader's lock) while another thread holds it. */
+    private void rfb$lockTransformsWaiting() {
+        final Thread me = Thread.currentThread();
+        if (rfb$transformOwner.get() == me) {
+            rfb$transformDepth++;
+            return;
+        }
+        if (!rfb$transformOwner.compareAndSet(null, me)) {
+            boolean interrupted = false;
+            rfb$waiters++; // before the next attempt, so a release in between sees it and notifies
+            try {
+                while (!rfb$transformOwner.compareAndSet(null, me)) {
+                    interrupted |= rfb$waitOnLoader();
+                }
+            } finally {
+                rfb$waiters--;
+            }
+            if (interrupted) {
+                me.interrupt();
+            }
+        }
+        rfb$transformDepth = 1;
+    }
+
+    private boolean rfb$tryLockTransforms() {
+        if (rfb$waiters > 0) {
+            return false;
+        }
+        if (rfb$transformOwner.compareAndSet(null, Thread.currentThread())) {
+            rfb$transformDepth = 1;
+            return true;
+        }
+        return false;
+    }
+
+    private void rfb$unlockTransforms(final ClassPreloader<rfb$PreparedClass> preloader) {
+        if (--rfb$transformDepth > 0) {
+            return;
+        }
+        rfb$transformOwner.set(null);
+        if (rfb$waiters > 0) {
+            synchronized (this) {
+                notifyAll();
+            }
+        }
+        preloader.transformLockReleased();
+    }
+
+    /** Must hold this loader's lock; releases it while waiting. Returns whether the thread was interrupted. */
+    private boolean rfb$waitOnLoader() {
+        boolean interrupted = false;
+        rfb$waiters++;
+        try {
+            wait(20);
+        } catch (InterruptedException e) {
+            interrupted = true;
+        } finally {
+            rfb$waiters--;
+        }
+        return interrupted;
+    }
+
+    /**
+     * RFB: A class load on the preload worker, triggered by a transformer while it prepares another class (the worker
+     * holds the transformer lock and, here, this loader's lock). Defining a class this early is only safe if it gets
+     * exactly the bytes it got in the previous launch, and if no other thread is loading it (that thread may be
+     * waiting for the transformer lock). Otherwise nothing is defined: the transformer gets a ClassNotFoundException
+     * and the class being prepared is discarded, so the loading thread loads both normally later.
+     */
+    private Class<?> rfb$findClassOnWorker(
+            final ClassPreloader<rfb$PreparedClass> preloader, final String name, final boolean runTransformers)
+            throws ClassNotFoundException {
+        if (rfb$transformOwner.get() != Thread.currentThread() || rfb$inFlight.containsKey(name)) {
+            throw rfb$refuseOnWorker(preloader, name, null);
+        }
+        final String transformedName = runTransformers ? transformName(name) : name;
+        {
+            final Class<?> defined = cachedClasses.get(transformedName);
+            if (defined != null) {
+                return defined;
+            }
+        }
+        if (rfb$inFlight.containsKey(transformedName)) {
+            throw rfb$refuseOnWorker(preloader, name, null);
+        }
+        rfb$PreparedClass prepared = preloader.take(name);
+        if (prepared != null && prepared.runTransformers != runTransformers) {
+            prepared = null;
+        }
+        if (prepared == null) {
+            prepared = rfb$prepare(name, runTransformers, transformedName, true);
+            if (prepared == null || !preloader.matchesLastLaunch(transformedName, prepared.classBytes)) {
+                throw rfb$refuseOnWorker(preloader, name, null);
+            }
+        }
+        // Load the supertypes through loadClass first, so that defineClass finds them loaded. Otherwise the JVM loads
+        // them itself, and would wait for another thread's in-progress load of the same class, which may be waiting
+        // for the transformer lock this thread holds.
+        final com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata header =
+                com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata.of(prepared.classBytes);
+        if (header == null) {
+            throw rfb$refuseOnWorker(preloader, name, null);
+        }
+        final List<String> supertypes = new ArrayList<>(header.binaryInterfaceNames);
+        if (header.binarySuperName != null) {
+            supertypes.add(0, header.binarySuperName);
+        }
+        for (String supertype : supertypes) {
+            try {
+                loadClass(supertype.replace('/', '.'));
+            } catch (ClassNotFoundException | LinkageError e) {
+                throw rfb$refuseOnWorker(preloader, name, e);
+            }
+        }
+        try {
+            return rfb$define(prepared);
+        } catch (LinkageError e) {
+            throw rfb$refuseOnWorker(preloader, name, e);
+        }
+    }
+
+    private static ClassNotFoundException rfb$refuseOnWorker(
+            ClassPreloader<rfb$PreparedClass> preloader, String name, Throwable cause) {
+        preloader.taint();
+        return new ClassNotFoundException(name + " can't be loaded early by the class preloader", cause);
+    }
+
+    /** RFB: A class read and transformed, but not defined yet */
+    private static final class rfb$PreparedClass implements ClassPreloader.Prepared {
+        final String transformedName;
+        final boolean runTransformers;
+        final String packageName;
+        /** Whether the package still has to be defined/verified, and with which manifest and URL */
+        final boolean packagePending;
+
+        final Manifest packageManifest;
+        final URL packageSourceUrl;
+        final CodeSource codeSource;
+        final byte[] classBytes;
+
+        rfb$PreparedClass(
+                String transformedName,
+                boolean runTransformers,
+                String packageName,
+                boolean packagePending,
+                Manifest packageManifest,
+                URL packageSourceUrl,
+                CodeSource codeSource,
+                byte[] classBytes) {
+            this.transformedName = transformedName;
+            this.runTransformers = runTransformers;
+            this.packageName = packageName;
+            this.packagePending = packagePending;
+            this.packageManifest = packageManifest;
+            this.packageSourceUrl = packageSourceUrl;
+            this.codeSource = codeSource;
+            this.classBytes = classBytes;
+        }
+
+        @Override
+        public String key() {
+            return transformedName;
+        }
+
+        @Override
+        public byte[] bytes() {
+            return classBytes;
+        }
+    }
+
+    private Class<?> rfb$define(rfb$PreparedClass prepared) {
+        if (prepared.packagePending) {
+            getAndVerifyPackage(prepared.packageName, prepared.packageManifest, prepared.packageSourceUrl);
+        }
+        final byte[] classBytes = prepared.classBytes;
+        Class<?> result;
+        try {
+            result = defineClass(prepared.transformedName, classBytes, 0, classBytes.length, prepared.codeSource);
+        } catch (LinkageError e) {
+            // with preloading, only if rfb$inFlight missed a case: the class exists already, use it
+            final Class<?> existing = findLoadedClass(prepared.transformedName);
+            if (existing == null) {
+                throw e;
+            }
+            LogWrapper.rfb$logger.warn(
+                    "Class preloader: {} was defined twice, using the first", prepared.transformedName);
+            cachedClasses.put(prepared.transformedName, existing);
+            return existing;
+        }
+        cachedClasses.put(prepared.transformedName, result);
+        rfb$preloader.onDefined(prepared.transformedName, classBytes);
+        return result;
+    }
+
+    /**
+     * RFB: Finds, reads and transforms a class, the part of findClass before defining it. With forPreload, the
+     * package is defined later (in rfb$define), and failures return null instead of throwing or marking the class
+     * invalid, so the loading thread retries it and reports errors as before.
+     */
+    private rfb$PreparedClass rfb$prepare(
+            final String name, final boolean runTransformers, final String transformedName, final boolean forPreload)
+            throws ClassNotFoundException {
         final String untransformedName = runTransformers ? untransformName(name) : name;
         final int lastDot = untransformedName.lastIndexOf('.');
         final String packageName = (lastDot == -1) ? "" : untransformedName.substring(0, lastDot);
         final String classPath = untransformedName.replace('.', '/') + ".class";
         final URLConnection connection = findCodeSourceConnectionFor(classPath);
         Package pkg = null;
+        boolean packagePending = false;
+        Manifest packageManifest = null;
+        URL packageUrl = null;
         final CodeSource codeSource;
         Manifest manifest = null;
         byte[] classBytes = null;
@@ -257,7 +557,13 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                 CodeSigner[] codeSigners = null;
                 try {
                     manifest = jarConnection.getManifest();
-                    pkg = getAndVerifyPackage(packageName, manifest, packageSourceUrl);
+                    if (forPreload) {
+                        packagePending = true;
+                        packageManifest = manifest;
+                        packageUrl = packageSourceUrl;
+                    } else {
+                        pkg = getAndVerifyPackage(packageName, manifest, packageSourceUrl);
+                    }
                     classBytes = runTransformers
                             ? getClassBytes(untransformedName)
                             : rfb$getUncachedClassBytes(untransformedName);
@@ -288,10 +594,16 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         if (Main.cfgDumpLoadedClassesPerTransformer && classBytes != null) {
             Main.dumpClass(this.getClassLoaderName(), transformedName + "__000_pretransform", classBytes);
         }
+        if (forPreload && (classBytes == null || rfb$preloader.mustNotPreload(classBytes))) {
+            return null;
+        }
         if (runTransformers) {
             try {
                 classBytes = runTransformers(untransformedName, transformedName, classBytes);
             } catch (Throwable t) {
+                if (forPreload) {
+                    return null;
+                }
                 ClassNotFoundException err =
                         new ClassNotFoundException("Exception caught while transforming class " + name, t);
                 LogWrapper.rfb$logger.debug("Transformer error", err);
@@ -314,6 +626,9 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
                     classBytes = runRfbTransformers(
                             Main.getRfbTransformers(), context, manifest, transformedName, classBytes);
                 } catch (Throwable t) {
+                    if (forPreload) {
+                        return null;
+                    }
                     ClassNotFoundException err =
                             new ClassNotFoundException("Exception caught while transforming class " + name, t);
                     LogWrapper.rfb$logger.debug("Transformer error", err);
@@ -322,18 +637,172 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             }
         }
         if (classBytes == null) {
+            if (forPreload) {
+                return null;
+            }
             invalidClasses.add(name);
             throw new ClassNotFoundException(String.format("Class bytes are null for %s (%s, %s)", name, name, name));
         }
         if (Main.cfgDumpLoadedClasses) {
             Main.dumpClass(this.getClassLoaderName(), transformedName, classBytes);
         }
-        if (!packageName.isEmpty() && pkg == null) {
-            getAndVerifyPackage(packageName, null, null);
+        if (!packageName.isEmpty() && pkg == null && !packagePending) {
+            packagePending = true; // defined in rfb$define, right before the class, as before
         }
-        Class<?> result = defineClass(transformedName, classBytes, 0, classBytes.length, codeSource);
-        cachedClasses.put(transformedName, result);
-        return result;
+        return new rfb$PreparedClass(
+                transformedName,
+                runTransformers,
+                packageName,
+                packagePending,
+                packageManifest,
+                packageUrl,
+                codeSource,
+                classBytes);
+    }
+
+    /**
+     * RFB: For the preloader: prepares a class by name, as findClass would. Called by the preload worker holding the
+     * transformer lock (not this loader's lock). Returns null if the class is loaded already, handled elsewhere, or
+     * failed.
+     */
+    private rfb$PreparedClass rfb$prepareForPreload(final String name) {
+        if (invalidClasses.contains(name) || cachedClasses.containsKey(name)) {
+            return null;
+        }
+        for (final String exception : classLoaderExceptions) {
+            if (name.startsWith(exception)) {
+                return null;
+            }
+        }
+        boolean runTransformers = true;
+        for (final String exception : transformerExceptions) {
+            if (name.startsWith(exception)) {
+                runTransformers = false;
+                break;
+            }
+        }
+        final String transformedName = runTransformers ? transformName(name) : name;
+        if (cachedClasses.containsKey(transformedName)) {
+            return null;
+        }
+        try {
+            return rfb$prepare(name, runTransformers, transformedName, true);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** RFB: The class preloader */
+    private final ClassPreloader<rfb$PreparedClass> rfb$preloader = new ClassPreloader<>(
+            new ClassPreloader.Target<rfb$PreparedClass>() {
+                @Override
+                public rfb$PreparedClass prepare(String name) {
+                    return rfb$prepareForPreload(name);
+                }
+
+                @Override
+                public String signature() {
+                    return rfb$signature();
+                }
+
+                @Override
+                public boolean tryLockTransforms() {
+                    return rfb$tryLockTransforms();
+                }
+
+                @Override
+                public void unlockTransforms() {
+                    rfb$unlockTransforms(rfb$preloader);
+                }
+            },
+            new File("rfb-preload-order.txt"));
+
+    private volatile java.lang.reflect.Field rfb$mixinRegisteredConfigs;
+    private volatile Method rfb$mixinUnvisitedCount;
+    private volatile Method rfb$mixinCurrentEnvironment;
+    private volatile Method rfb$mixinGetPhase;
+    private volatile java.lang.reflect.Field rfb$mixinProxyTransformer;
+    private volatile java.lang.reflect.Field rfb$mixinProcessor;
+    private volatile java.lang.reflect.Field rfb$mixinPendingConfigs;
+    private volatile boolean rfb$mixinLookupDone;
+
+    /**
+     * RFB: Describes the class transformer setup: transformer counts, the number of mixin configs registered and not
+     * visited yet, the number selected but not prepared yet (Mixin prepares them outside the transformer lock only
+     * before preloading can start; GTNHMixins' late mixins are selected and prepared by separate calls), and the
+     * Mixin environment phase (which decides which mixins apply). Prepared classes are only used while it stays the
+     * same. Exclusions aren't part of it: they only matter for the classes they cover, which is checked per class
+     * (rfb$PreparedClass.runTransformers).
+     */
+    private String rfb$signature() {
+        final StringBuilder sb = new StringBuilder();
+        sb.append(transformers.size())
+                .append('/')
+                .append(Main.getRfbTransformers().size())
+                .append('/')
+                .append(renameTransformer != null)
+                .append("/mixins:");
+        if (!rfb$mixinLookupDone) {
+            // may run on two threads at once; both find the same values, and the flag is set last
+            for (IClassTransformer xformer : transformers) {
+                if (xformer.getClass().getName().equals("org.spongepowered.asm.mixin.transformer.Proxy")) {
+                    try {
+                        final Class<?> mixins = Class.forName(
+                                "org.spongepowered.asm.mixin.Mixins",
+                                false,
+                                xformer.getClass().getClassLoader());
+                        final java.lang.reflect.Field registered = mixins.getDeclaredField("registeredConfigs");
+                        registered.setAccessible(true);
+                        rfb$mixinUnvisitedCount = mixins.getMethod("getUnvisitedCount");
+                        final Class<?> environment = Class.forName(
+                                "org.spongepowered.asm.mixin.MixinEnvironment",
+                                false,
+                                xformer.getClass().getClassLoader());
+                        rfb$mixinCurrentEnvironment = environment.getMethod("getCurrentEnvironment");
+                        rfb$mixinGetPhase = environment.getMethod("getPhase");
+                        final java.lang.reflect.Field proxyTransformer =
+                                xformer.getClass().getDeclaredField("transformer");
+                        proxyTransformer.setAccessible(true);
+                        final java.lang.reflect.Field processor =
+                                proxyTransformer.getType().getDeclaredField("processor");
+                        processor.setAccessible(true);
+                        final java.lang.reflect.Field pending =
+                                processor.getType().getDeclaredField("pendingConfigs");
+                        pending.setAccessible(true);
+                        rfb$mixinProxyTransformer = proxyTransformer;
+                        rfb$mixinProcessor = processor;
+                        rfb$mixinPendingConfigs = pending;
+                        rfb$mixinRegisteredConfigs = registered;
+                    } catch (Throwable t) {
+                        LogWrapper.rfb$logger.warn("Class preloader: can't count mixin configs", t);
+                    }
+                    rfb$mixinLookupDone = true;
+                    break;
+                }
+            }
+        }
+        try {
+            if (rfb$mixinRegisteredConfigs == null) {
+                sb.append("none");
+            } else {
+                sb.append(((Collection<?>) rfb$mixinRegisteredConfigs.get(null)).size())
+                        .append(" unvisited:")
+                        .append(rfb$mixinUnvisitedCount.invoke(null))
+                        .append(" pending:");
+                final Object mixinTransformer = rfb$mixinProxyTransformer.get(null);
+                sb.append(
+                                mixinTransformer == null
+                                        ? 0
+                                        : ((Collection<?>) rfb$mixinPendingConfigs.get(
+                                                        rfb$mixinProcessor.get(mixinTransformer)))
+                                                .size())
+                        .append(" phase:")
+                        .append(rfb$mixinGetPhase.invoke(rfb$mixinCurrentEnvironment.invoke(null)));
+            }
+        } catch (Throwable t) {
+            sb.append('?');
+        }
+        return sb.toString();
     }
 
     // based off OpenJDK's own URLClassLoader
@@ -383,7 +852,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
      */
     private URLConnection findCodeSourceConnectionFor(final String name) {
         try {
-            final URL url = findResource(name);
+            final URL url = rfb$findClassFile(name);
             if (url == null) {
                 return null;
             }
@@ -394,6 +863,15 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         }
     }
 
+    /** RFB: The classpath as of construction; addURL/addSilentURL append to it */
+    private final ClassPathIndex rfb$classPathIndex = new ClassPathIndex(getURLs());
+
+    /** RFB: findResource for class files, answered from the classpath index where it can */
+    private URL rfb$findClassFile(final String path) {
+        final Object indexed = rfb$classPathIndex.lookup(path);
+        return indexed == ClassPathIndex.UNKNOWN ? findResource(path) : (URL) indexed;
+    }
+
     /**
      * <ol>
      *     <li>For each transformer on the transformer list, transform basicClass</li>
@@ -401,6 +879,65 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
      * </ol>
      */
     private byte[] runTransformers(final String name, final String transformedName, byte[] basicClass) {
+        if (rfb$transformOwner.get() == Thread.currentThread()) {
+            return rfb$runTransformers(name, transformedName, basicClass);
+        }
+        // some mods call this private method by reflection
+        rfb$lockTransformsExternal();
+        try {
+            return rfb$runTransformers(name, transformedName, basicClass);
+        } finally {
+            rfb$unlockTransforms(rfb$preloader);
+        }
+    }
+
+    private void rfb$lockTransformsExternal() {
+        synchronized (this) {
+            rfb$lockTransformsWaiting();
+        }
+    }
+
+    private static final Map<String, Method> rfb$lockedMethods = new ConcurrentHashMap<>();
+
+    /**
+     * RFB: Replaces the bodies of some Mixin methods (see MixinTransformLockTransformer) that run the LaunchClassLoader
+     * transformers or change the mixin configs that transforming a class reads, possibly outside any class load. They
+     * run holding the transformer lock, so they never run while the preload worker transforms a class.
+     * Calls the original method, renamed to {@code name}, on {@code self}.
+     */
+    public static Object rfb$invokeLocked(final Object self, final String name, final Object[] args) throws Throwable {
+        final String key = self.getClass().getName() + '#' + name;
+        Method original = rfb$lockedMethods.get(key);
+        if (original == null) {
+            for (Method m : self.getClass().getDeclaredMethods()) {
+                if (m.getName().equals(name)) {
+                    m.setAccessible(true);
+                    original = m;
+                    break;
+                }
+            }
+            if (original == null) {
+                throw new IllegalStateException(name + " not found in " + self.getClass());
+            }
+            rfb$lockedMethods.put(key, original);
+        }
+        final LaunchClassLoader lcl = Launch.classLoader;
+        final boolean lock = lcl != null && lcl.rfb$transformOwner.get() != Thread.currentThread();
+        if (lock) {
+            lcl.rfb$lockTransformsExternal();
+        }
+        try {
+            return original.invoke(self, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        } finally {
+            if (lock) {
+                lcl.rfb$unlockTransforms(lcl.rfb$preloader);
+            }
+        }
+    }
+
+    private byte[] rfb$runTransformers(final String name, final String transformedName, byte[] basicClass) {
         int xformerIndex = 1;
         for (IClassTransformer xformer : transformers) {
             try {
@@ -465,6 +1002,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     public void addURL(final URL url) {
         this.negativeResourceCache.clear();
         super.addURL(url);
+        rfb$classPathIndex.add(url);
         sources.add(url);
     }
 
@@ -472,6 +1010,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
     public void addSilentURL(@Nullable URL url) {
         this.negativeResourceCache.clear();
         super.addURL(url);
+        rfb$classPathIndex.add(url);
     }
 
     /** Returns the saved classpath list */
@@ -604,7 +1143,7 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
 
     private byte[] rfb$getUncachedClassBytes(String name) throws IOException {
         final String classPath = name.replace('.', '/') + ".class";
-        final URL resourceUrl = findResource(classPath);
+        final URL resourceUrl = rfb$findClassFile(classPath);
         URLConnection conn = resourceUrl == null ? null : resourceUrl.openConnection();
         if (conn == null) {
             if (rfb$platformLoader != null) {
