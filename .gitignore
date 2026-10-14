@@ -7,3 +7,6 @@ out/
 
 .DS_Store
 .idea
+
+# Written by the class preloader when the tests run
+rfb-preload-order.txt
