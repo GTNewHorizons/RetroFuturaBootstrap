@@ -14,6 +14,11 @@ import java.util.jar.Manifest;
  * Non-Java-version-specific extensions to {@link URLClassLoaderBase}
  */
 public class URLClassLoaderWithUtilities extends URLClassLoaderBase {
+
+    static {
+        ClassLoader.registerAsParallelCapable();
+    }
+
     public URLClassLoaderWithUtilities(URL[] urls, ClassLoader parent) {
         super(urls, parent);
     }

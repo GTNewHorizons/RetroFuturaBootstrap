@@ -12,6 +12,11 @@ import java.util.jar.Manifest;
  * URLClassLoader base class exposing stub Java 9+ APIs in Java 8, and real ones in Java 9+ using a multi-release JAR.
  */
 public class URLClassLoaderBase extends URLClassLoader {
+
+    static {
+        ClassLoader.registerAsParallelCapable();
+    }
+
     public URLClassLoaderBase(URL[] urls, ClassLoader parent) {
         super(urls, parent);
     }
@@ -57,6 +62,15 @@ public class URLClassLoaderBase extends URLClassLoader {
         return stream.readAllBytes();
     }
 
+    /**
+     * One lock per class when parallel class loading is enabled, otherwise the loader itself, as for a loader that is not
+     * parallel capable.
+     */
+    @Override
+    protected Object getClassLoadingLock(String className) {
+        return SharedConfig.cfgParallelClassLoading ? super.getClassLoadingLock(className) : this;
+    }
+
     // based off OpenJDK's own URLClassLoader
     public Package getAndVerifyPackage(final String packageName, final Manifest manifest, final URL codeSourceURL) {
         Package pkg = getDefinedPackage(packageName);
@@ -72,7 +86,14 @@ public class URLClassLoaderBase extends URLClassLoader {
                 throw new SecurityException("Sealing violation in already loaded package " + packageName);
             }
         } else {
-            return definePackage(packageName, manifest != null ? manifest : new Manifest(), codeSourceURL);
+            try {
+                return definePackage(packageName, manifest != null ? manifest : new Manifest(), codeSourceURL);
+            } catch (IllegalArgumentException e) {
+                // another thread defined it between the lookup and here, both describe the same source
+                final Package defined = getPackage(packageName);
+                if (defined == null) throw e;
+                return defined;
+            }
         }
         return pkg;
     }

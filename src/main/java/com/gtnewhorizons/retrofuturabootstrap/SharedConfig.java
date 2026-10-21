@@ -31,6 +31,16 @@ public class SharedConfig {
     /** Controlled by system property {@code rfb.dumpClassesAsynchronously=true}, if the class dumps are done from another Thread to avoid slow IO */
     public static final boolean cfgDumpClassesAsynchronously = getBooleanOr("rfb.dumpClassesAsynchronously", true);
 
+    /**
+     * Controlled by system property {@code rfb.parallelClassLoading=false}, whether classes may be loaded by several
+     * threads at once, one lock per class instead of one per loader. Needs every class transformer to be thread safe;
+     * the bundled concurrent-transformers plugin fixes the known unsafe ones.
+     */
+    public static final boolean cfgParallelClassLoading = getBooleanOr("rfb.parallelClassLoading", false);
+
+    /** Controlled by system property {@code rfb.parallelClassLoadingThreads=0}, class preloader threads, 0 for automatic. */
+    public static final int cfgPreloadThreads = Integer.getInteger("rfb.parallelClassLoadingThreads", 0);
+
     /** The target class dumping directory, initialized during commandline option parsing. */
     public static @NotNull AtomicReference<@Nullable Path> classDumpDirectory = new AtomicReference<>(null);
 

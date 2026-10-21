@@ -2,12 +2,14 @@ package net.minecraft.launchwrapper;
 
 import com.gtnewhorizons.retrofuturabootstrap.Main;
 import com.gtnewhorizons.retrofuturabootstrap.RfbSystemClassLoader;
+import com.gtnewhorizons.retrofuturabootstrap.SharedConfig;
 import com.gtnewhorizons.retrofuturabootstrap.URLClassLoaderWithUtilities;
 import com.gtnewhorizons.retrofuturabootstrap.api.ClassHeaderMetadata;
 import com.gtnewhorizons.retrofuturabootstrap.api.ExtensibleClassLoader;
 import com.gtnewhorizons.retrofuturabootstrap.api.FastClassAccessor;
 import com.gtnewhorizons.retrofuturabootstrap.api.RfbClassTransformer;
 import com.gtnewhorizons.retrofuturabootstrap.asm.SafeAsmClassWriter;
+import com.gtnewhorizons.retrofuturabootstrap.preload.ClassPreloader;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -33,6 +35,13 @@ import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ClassWriter;
 
 public class LaunchClassLoader extends URLClassLoaderWithUtilities implements ExtensibleClassLoader {
+
+    static {
+        ClassLoader.registerAsParallelCapable();
+    }
+
+    /** RFB: set while working out the canonical name of a class to lock on, renaming can load classes itself */
+    private static final ThreadLocal<Boolean> rfb$resolvingLock = new ThreadLocal<>();
 
     /** Internal IO buffer size */
     public static final int BUFFER_SIZE = 1 << 12;
@@ -322,7 +331,10 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
             }
         }
         if (classBytes == null) {
-            invalidClasses.add(name);
+            // a preloader thread only guessed this class exists, the miss says nothing about later lookups
+            if (!ClassPreloader.isPreloaderThread()) {
+                invalidClasses.add(name);
+            }
             throw new ClassNotFoundException(String.format("Class bytes are null for %s (%s, %s)", name, name, name));
         }
         if (Main.cfgDumpLoadedClasses) {
@@ -333,7 +345,27 @@ public class LaunchClassLoader extends URLClassLoaderWithUtilities implements Ex
         }
         Class<?> result = defineClass(transformedName, classBytes, 0, classBytes.length, codeSource);
         cachedClasses.put(transformedName, result);
+        ClassPreloader.onDefine(transformedName);
         return result;
+    }
+
+    /**
+     * RFB: with parallel class loading, an obfuscated and a deobfuscated name of the same class share one lock, they
+     * resolve to the same class.
+     */
+    @Override
+    protected Object getClassLoadingLock(String className) {
+        if (!SharedConfig.cfgParallelClassLoading || rfb$resolvingLock.get() != null) {
+            return super.getClassLoadingLock(className);
+        }
+        rfb$resolvingLock.set(Boolean.TRUE);
+        try {
+            return super.getClassLoadingLock(transformName(className));
+        } catch (Throwable t) {
+            return super.getClassLoadingLock(className);
+        } finally {
+            rfb$resolvingLock.remove();
+        }
     }
 
     // based off OpenJDK's own URLClassLoader
